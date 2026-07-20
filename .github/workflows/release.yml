@@ -89,11 +89,11 @@ jobs:
         working-directory: "${{ runner.temp }}/user-model-distiller-release"
         run: sha256sum --check SHA256SUMS
       - name: "Attest release provenance"
-        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6
         with:
           subject-path: "${{ runner.temp }}/user-model-distiller-release/*"
       - name: "Attest release SBOM"
-        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6
         with:
           subject-path: "${{ runner.temp }}/user-model-distiller-release/user-model-distiller-${{ needs.build.outputs.release-version }}.zip"
           sbom-path: "${{ runner.temp }}/user-model-distiller-release/user-model-distiller-${{ needs.build.outputs.release-version }}.spdx.json"
