@@ -638,6 +638,22 @@ class InstallIntegrityTests(unittest.TestCase):
         self.assertLess(install.index("Approval receipt"), install.index("Do not re-fetch"))
         self.assertLess(install.index("Do not re-fetch"), install.index("same staged bytes"))
 
+    def test_quick_install_is_pinned_and_avoids_cross_identity_git_staging(self):
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        install = (REPO_ROOT / "install.md").read_text(encoding="utf-8")
+        pinned_url = (
+            "https://github.com/jacky-0218-lung/user-model-distiller/tree/"
+            "9afdd7b5d09361ddebe09918c6f8aaae897964b0/skills/user-model-distiller"
+        )
+
+        self.assertIn("$skill-installer", readme)
+        self.assertIn(pinned_url, readme)
+        self.assertIn(pinned_url, install)
+        self.assertLess(install.index("Quick install"), install.index("High-assurance install"))
+        self.assertIn("Prefer direct download", install)
+        self.assertIn("same operating-system identity", install)
+        self.assertIn("do not assume that the workflow runs under one SID", install)
+
 
 class SkillLayoutTests(unittest.TestCase):
     def test_skill_has_no_placeholders(self):

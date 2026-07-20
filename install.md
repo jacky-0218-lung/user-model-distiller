@@ -1,4 +1,33 @@
-# Secure installation plan
+# Installation plan
+
+Choose the installation mode that matches the environment. The quick path is
+recommended for ordinary local Codex installations. The high-assurance path is
+available when policy requires per-file review and approval bound to an exact
+bundle digest.
+
+## Quick install (recommended)
+
+Use the trusted, built-in `$skill-installer` with the public repository URL
+pinned to the full `v0.2.3` commit SHA:
+
+```text
+https://github.com/jacky-0218-lung/user-model-distiller/tree/9afdd7b5d09361ddebe09918c6f8aaae897964b0/skills/user-model-distiller
+```
+
+Ask the installer to:
+
+1. Prefer direct download and use Git only if direct download is unavailable
+   because of authentication or permission errors.
+2. Install only the `skills/user-model-distiller` subtree.
+3. Refuse to overwrite an existing destination and report it instead.
+4. Avoid executing any downloaded Skill script during installation.
+5. Report the installed path. The Skill should be available on the next turn;
+   restart Codex only if it is not detected.
+
+This path deliberately does not create an integrity-bound review receipt. Use the
+high-assurance path below when an integrity-bound review is required.
+
+## High-assurance install (optional)
 
 Install only after the user approves an integrity-bound receipt for the exact
 bytes that will be installed.
@@ -16,11 +45,18 @@ bytes that will be installed.
 
 1. Confirm the repository owner and HTTPS origin.
 2. Resolve the selected branch, tag, or release exactly once to a full 40-character commit SHA. An abbreviated SHA, branch name, tag name, or other mutable label is not an approved source identity.
-3. Create a new private staging directory that is readable only by the installing user when the platform supports access controls.
-4. Fetch `install.md` and the complete `skills/user-model-distiller` subtree from that exact commit. Every later source request must use the same full commit SHA.
-5. Reject symbolic links, non-regular files, absolute paths, and paths that escape the staged Skill root. Include every regular file below the staged Skill root; do not silently omit hidden or unexpected files.
-6. Do not request access to chat histories during installation.
-7. Do not execute any downloaded script merely to install or verify the Skill.
+3. Prefer one direct HTTPS archive download for the resolved commit. Do not
+   initialize a Git repository only for staging. If Git is required, use the
+   same operating-system identity for every `.git` operation and scope any
+   `safe.directory` exception to the exact temporary repository.
+4. Create a new private staging directory. On Windows, preserve access for the
+   Codex sandbox and approved host identities that the installation actually
+   requires; do not assume that the workflow runs under one SID. Do not grant
+   access to unrelated users or groups.
+5. Fetch `install.md` and the complete `skills/user-model-distiller` subtree from that exact commit. Every later source request must use the same full commit SHA.
+6. Reject symbolic links, non-regular files, absolute paths, and paths that escape the staged Skill root. Include every regular file below the staged Skill root; do not silently omit hidden or unexpected files.
+7. Do not request access to chat histories during installation.
+8. Do not execute any downloaded script merely to install or verify the Skill.
 
 ## Canonical bundle digest
 
