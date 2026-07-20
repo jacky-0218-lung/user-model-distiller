@@ -113,3 +113,11 @@ After the verified replacement:
 ## First use
 
 Ask the user to choose a specific authorized export or session directory and a separate private output directory. Default to preview-only processing. Never publish, upload, or commit the resulting files.
+
+Installation alone does not authorize history access, native-memory changes, or global startup guidance. If the user explicitly requests continuous cross-session behavior:
+
+1. Ask them to enable Codex memories in **Settings > Personalization** and choose use/contribution behavior with `/memories`.
+2. Complete evidence review and digest-bound preference approval before compiling a stable private `USER_MODEL.md`.
+3. Read `references/continuous-memory.md` and run `scripts/memory_control.py plan-install` to create a private Approval receipt for the proposed global `AGENTS.md` bridge.
+4. Stop after showing the exact receipt and marked-block diff. Apply only the same saved plan after approval of its `receipt_digest`; do not regenerate it between review and apply.
+5. Never edit host-generated files under `~/.codex/memories/` and never auto-approve inferred preferences.

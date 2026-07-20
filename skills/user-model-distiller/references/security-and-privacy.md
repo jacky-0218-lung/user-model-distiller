@@ -55,9 +55,20 @@ Mark necessary but sensitive user-provided facts as `sensitive`. Keep them exclu
 - Keep superseded records from compiling.
 - Run adversarial fixtures containing fake "remember this" instructions in tool and assistant content.
 
+## Continuous-use boundary
+
+- Use Codex Settings and `/memories` for native memory use and contribution. Never hand-edit host-generated files under `~/.codex/memories/`.
+- Treat native memory as a helpful recall layer, not as the only source of preferences that must apply on every run.
+- Install the deterministic runtime bridge only after an explicit user request and an exact, digest-bound `memory_control.py` plan review.
+- Refuse bridge application if the saved plan, approved digest, existing `AGENTS.md`, runtime-view format, or path safety check changes.
+- Modify only the uniquely marked User Model Distiller block. Preserve unrelated global instructions.
+- Keep the runtime view outside the Skill and repository, compiled from approved entries without transcript quotes or provenance.
+- Recompile updates to the same stable private runtime path only after the underlying profile changes have passed evidence review and digest-bound approval.
+- Never claim that native memories update immediately or for every chat. Host eligibility, idle time, user controls, external context, and quota may affect generation.
+
 ## Deletion
 
-Deletion is complete only when the item is absent from the source profile, compiled runtime view, review artifacts, indexes, caches, and backups controlled by the workflow. `forget` modifies the profile and explicitly requires recompilation and artifact purging. Report any location that cannot be modified rather than claiming complete deletion.
+Deletion is complete only when the item is absent from the source profile, compiled runtime view, review artifacts, indexes, caches, startup bridge, and backups controlled by the workflow. `forget` modifies the profile and explicitly requires recompilation and artifact purging. Native Codex memory has separate host controls; report that boundary and use `/memories` or Settings rather than claiming the profile deletion removed host-managed copies.
 
 ## Repository hygiene
 

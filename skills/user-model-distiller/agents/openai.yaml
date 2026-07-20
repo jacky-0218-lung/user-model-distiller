@@ -1,4 +1,4 @@
 interface:
   display_name: "User Model Distiller"
-  short_description: "Distill reviewable preferences from past sessions"
-  default_prompt: "Use $user-model-distiller to turn my exported sessions into a reviewable preference profile."
+  short_description: "Build and continuously use reviewable preferences"
+  default_prompt: "Use $user-model-distiller to build an approved profile and set up safe cross-session use."
