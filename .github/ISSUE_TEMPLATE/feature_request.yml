@@ -1,0 +1,34 @@
+name: "Feature request"
+description: "Propose a privacy-preserving improvement."
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem"
+      description: "Describe the workflow problem without real user data."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed behavior"
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: "Privacy and security risks"
+      description: "Cover data access, retention, provenance, injection, and deletion."
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: "Design boundaries"
+      options:
+        - label: "The proposal preserves explicit authorization and review before activation."
+          required: true
+        - label: "The proposal does not require real session data in the repository."
+          required: true

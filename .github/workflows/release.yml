@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "release-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: "Build and verify release"
+    if: github.repository == 'jacky-0218-lung/user-model-distiller'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      release-version: "${{ steps.release-metadata.outputs.version }}"
+    steps:
+      - name: "Check out tagged source"
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: "Verify annotated tag and main ancestry"
+        env:
+          EXPECTED_SHA: "${{ github.sha }}"
+          RELEASE_TAG: "${{ github.ref_name }}"
+        run: |
+          set -eu
+          test "$(git cat-file -t "$RELEASE_TAG")" = "tag"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$EXPECTED_SHA"
+          git merge-base --is-ancestor "$EXPECTED_SHA" origin/main
+      - name: "Compile and test"
+        run: |
+          python3 -m compileall -q skills tests tools
+          python3 -m unittest discover -s tests -v
+          python3 tools/check_repository.py
+      - name: "Build deterministic release"
+        env:
+          RELEASE_TAG: "${{ github.ref_name }}"
+        run: |
+          python3 tools/build_release.py build \
+            --output-dir "$RUNNER_TEMP/user-model-distiller-release" \
+            --expected-tag "$RELEASE_TAG" \
+            --source-date-epoch 0
+          python3 tools/build_release.py verify "$RUNNER_TEMP/user-model-distiller-release"
+      - name: "Read verified release metadata"
+        id: release-metadata
+        run: |
+          set -eu
+          release_version="$(python3 -c 'import json, os; print(json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "user-model-distiller-release", "release-manifest.json"), encoding="utf-8"))["version"])')"
+          case "$release_version" in
+            *[!0-9A-Za-z.+-]*|"") exit 1 ;;
+          esac
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
+      - name: "Upload verified release handoff"
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: user-model-distiller-release
+          path: "${{ runner.temp }}/user-model-distiller-release/*"
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  attest:
+    name: "Attest verified release"
+    needs: build
+    if: github.repository == 'jacky-0218-lung/user-model-distiller'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: "Download verified release handoff"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: user-model-distiller-release
+          path: "${{ runner.temp }}/user-model-distiller-release"
+      - name: "Recheck attested checksums"
+        working-directory: "${{ runner.temp }}/user-model-distiller-release"
+        run: sha256sum --check SHA256SUMS
+      - name: "Attest release provenance"
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4
+        with:
+          subject-path: "${{ runner.temp }}/user-model-distiller-release/*"
+      - name: "Attest release SBOM"
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4
+        with:
+          subject-path: "${{ runner.temp }}/user-model-distiller-release/user-model-distiller-${{ needs.build.outputs.release-version }}.zip"
+          sbom-path: "${{ runner.temp }}/user-model-distiller-release/user-model-distiller-${{ needs.build.outputs.release-version }}.spdx.json"
+
+  publish:
+    name: "Publish release"
+    needs: [build, attest]
+    if: github.repository == 'jacky-0218-lung/user-model-distiller'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: "Download attested release handoff"
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: user-model-distiller-release
+          path: "${{ runner.temp }}/user-model-distiller-release"
+      - name: "Recheck published checksums"
+        working-directory: "${{ runner.temp }}/user-model-distiller-release"
+        run: sha256sum --check SHA256SUMS
+      - name: "Publish verified artifacts as a GitHub release"
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          RELEASE_TAG: "${{ github.ref_name }}"
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "$RUNNER_TEMP/user-model-distiller-release/user-model-distiller-"*.zip \
+            "$RUNNER_TEMP/user-model-distiller-release/user-model-distiller-"*.spdx.json \
+            "$RUNNER_TEMP/user-model-distiller-release/SHA256SUMS" \
+            "$RUNNER_TEMP/user-model-distiller-release/release-manifest.json" \
+            --verify-tag \
+            --generate-notes \
+            --title "$RELEASE_TAG"

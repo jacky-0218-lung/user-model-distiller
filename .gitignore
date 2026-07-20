@@ -1,0 +1,42 @@
+# Private session data and generated user models
+private/
+data/
+exports/
+work/
+*.zip
+conversations.json
+conversations-*.json
+normalized*.jsonl
+evidence*.jsonl
+profile.json
+profile-*.json
+USER_MODEL.md
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# Python and tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
