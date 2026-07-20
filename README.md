@@ -3,13 +3,161 @@
 [![CI](https://github.com/jacky-0218-lung/user-model-distiller/actions/workflows/ci.yml/badge.svg)](https://github.com/jacky-0218-lung/user-model-distiller/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/jacky-0218-lung/user-model-distiller/actions/workflows/codeql.yml/badge.svg)](https://github.com/jacky-0218-lung/user-model-distiller/actions/workflows/codeql.yml)
 
+[繁體中文](#繁體中文) | [English](#english)
+
+## 繁體中文
+
+User Model Distiller 是一個以本機處理為優先的 Codex Skill。它會把使用者明確授權的對話紀錄，整理成可審查、有證據來源的工作偏好模型，讓 AI 更了解使用者希望如何合作與接收答案。
+
+本專案的目標是減少使用者反覆修正 AI 輸出的負擔，同時避免在未告知的情況下建立個人側寫。任何候選偏好都必須先經過使用者審查與明確核准，才會成為可使用的偏好。
+
+> 本專案仍處於 Alpha 階段。評估時請先使用合成資料或已有備份的資料。
+
+### 它能做什麼
+
+- 匯入由使用者提供的 ChatGPT 匯出檔，以及支援的 JSON 或 JSONL session 紀錄。
+- 只追蹤 ChatGPT 對話中目前有效的分支，不會把已放棄的回答分支混在一起。
+- 不把 system 訊息或工具輸出當成使用者偏好的證據。
+- 將外部 session 與訊息識別碼替換為穩定的本機假名識別碼。
+- 在高隱私模式下，移除來源檔名，並遮蔽常見憑證、聯絡資訊、UUID、網址、路徑、網域、附件名稱、長識別碼及商業金額。
+- 在建立證據前執行預設拒絕的隱私閘門；若要交由外部審查，還會執行更嚴格的檢查。
+- 找出可能的明確偏好、修正與核准內容，交由使用者審查。
+- 以原子方式發布完整的預覽結果，並附上不含路徑資訊的 SHA-256 manifest。
+- 只有在證據已審查，且使用者核准與內容摘要綁定後，才允許啟用偏好。
+- 驗證封閉格式的偏好設定檔，包括來源、適用範圍、到期時間與合法狀態轉換。
+- 只把已核准且有效的偏好編譯成精簡的執行階段內容。
+- 支援用新偏好取代舊偏好，以及忘記指定偏好。
+
+### 它不會做什麼
+
+- 不會登入、爬取 ChatGPT，或繞過任何存取控制。
+- 不會自動讀取帳號中的所有對話。
+- 不會把對話紀錄上傳到記憶服務。
+- 不會把模型或工具輸出視為關於使用者的事實。
+- 不會推論受保護的個人特徵，也不會建立心理側寫。
+- 未經明確要求，不會修改 ChatGPT Memory 或 Codex 的記憶檔案。
+
+### 透過 Agent 安裝
+
+把下面這段指示交給你的 Agent：
+
+> 將 `jacky-0218-lung/user-model-distiller` 解析成一個完整的 40 字元 commit SHA。只從該 commit 取得 `install.md` 與 `skills/user-model-distiller`，並放入新的私有暫存目錄。審查暫存檔案，依照 `install.md` 定義計算標準 bundle digest，然後向我顯示 Approval receipt，內容須包含 repository、commit、digest、檔案清單與安裝目的地。等我核准完全相同的 receipt 後，不得重新下載；只複製同一批已暫存的位元組，並確認暫存與安裝後的 digest 都和已核准的 digest 相同。任何不一致都必須拒絕安裝。不得為了安裝 Skill 而執行下載的腳本。
+
+這個流程會把使用者的核准綁定到不可變的內容，而不是可能隨時變動的 branch。安裝指南也刻意避免 `curl | shell` 等遠端程式碼直接執行方式。
+
+### 手動安裝
+
+使用 Git 用戶端或 GitHub archive endpoint，先把要安裝的版本解析成完整 commit SHA。將該 commit 的內容放入私有暫存位置，再依照 [install.md](install.md) 審查並驗證標準 bundle digest，確認後才複製檔案。請勿直接從任意、可變動的 checkout 安裝。
+
+把已驗證的 `skills/user-model-distiller` 子目錄安裝到 Agent 信任的 Skill 目錄。Codex 一般使用：
+
+```text
+$CODEX_HOME/skills/user-model-distiller
+```
+
+若未設定 `CODEX_HOME`，請使用使用者個人目錄下的 `.codex/skills/user-model-distiller`。安裝完成後，如果系統沒有立刻發現 Skill，請重新啟動或開啟新的工作階段。
+
+### 私有工作流程
+
+所有輸入與輸出都應放在 repository 之外，最好使用專門的私有目錄。
+
+以下範例使用 `python3`。在 Windows 上，如果已安裝 Python 3.10 以上版本，可使用 `py -3`；也可以提供已核准 Python 執行環境的完整路徑。若在 Codex 桌面版找不到這兩個指令，可請 Codex 尋找內建的 workspace Python。
+
+```bash
+python3 skills/user-model-distiller/scripts/distill_workflow.py preview chatgpt-export.zip \
+  --output-dir /private/user-model-run-001 \
+  --authorization-id source-review-001 --privacy high
+python3 skills/user-model-distiller/scripts/distill_workflow.py verify \
+  /private/user-model-run-001
+
+python3 skills/user-model-distiller/scripts/prepare_review_pack.py prepare \
+  /private/user-model-run-001/evidence.jsonl \
+  --output-dir /private/external-review-pack-001 \
+  --mapping-output /access-isolated/review-map-001.json \
+  --authorization-id disclosure-approval-001
+python3 skills/user-model-distiller/scripts/prepare_review_pack.py verify \
+  /private/external-review-pack-001
+
+python3 skills/user-model-distiller/scripts/profile_tool.py review-evidence \
+  /private/user-model-run-001/evidence.jsonl \
+  --message-id MESSAGE_ID --decision accepted \
+  --authorization-id evidence-review-001 \
+  --output /private/user-model-review-001/reviewed-evidence.jsonl
+python3 skills/user-model-distiller/scripts/profile_tool.py add-candidate \
+  /private/user-model-run-001/profile.json \
+  /private/user-model-review-001/reviewed-evidence.jsonl \
+  --id pref_conclusion_first --rule "Lead with the conclusion." \
+  --category response_style --confidence 0.9 \
+  --message-id MESSAGE_ID \
+  --output /private/user-model-review-001/candidate-profile.json
+python3 skills/user-model-distiller/scripts/profile_tool.py candidate-digest \
+  /private/user-model-review-001/candidate-profile.json pref_conclusion_first
+python3 skills/user-model-distiller/scripts/profile_tool.py approve \
+  /private/user-model-review-001/candidate-profile.json pref_conclusion_first \
+  --authorization-id candidate-approval-001 \
+  --expected-digest REVIEWED_DIGEST \
+  --output /private/user-model-review-001/approved-profile.json
+python3 skills/user-model-distiller/scripts/profile_tool.py compile \
+  /private/user-model-review-001/approved-profile.json \
+  --output /private/user-model-review-001/USER_MODEL.md
+```
+
+`preview` 指令不會核准或編譯任何規則。請維持已驗證產物不可變，並把審查與核准後的版本寫入另一個私有目錄。`add-candidate` 只接受已明確審查、直接來自使用者的證據；`approve` 則要求提供使用者實際看過之候選偏好的 digest。具有限定範圍的規則，只有在執行時提供相符的專案、任務或暫時情境才會被編譯。
+
+外部審查資料包是選用功能。它只包含隨機 review ID、證據種類與使用者文字。任何隱私警告——包括獨立出現的網域或使用 Unicode 分隔符的網域——都會阻止發布。來源 ID 對照表必須寫入另一個、具有獨立存取控制的上層目錄；如果該目錄不存在，工具會建立僅限擁有者存取的目錄。如果既有目錄可共用或繼承了過寬的權限，工具會拒絕使用。即使資料包通過檢查，在揭露給託管式審查者之前仍需取得另一個明確的使用者決定。
+
+### 安全模型
+
+匯入的對話內容一律視為不受信任。只有使用者本人撰寫的內容可以成為偏好候選證據，而且只有使用者明確核准後才能啟用。編譯後的執行階段提示不會包含來源引文，以降低持續性 prompt injection 的風險。
+
+在使用真實對話紀錄前，請先閱讀 [SECURITY.md](SECURITY.md)、[威脅模型](docs/threat-model.md)，以及 Skill 的[安全與隱私政策](skills/user-model-distiller/references/security-and-privacy.md)。
+
+### 開發
+
+執行階段腳本只使用 Python 標準函式庫，支援 Python 3.10 以上版本。
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 tools/check_repository.py
+python3 -m compileall -q skills tests tools
+```
+
+請在 repository 之外建立可重現的 release，並在建立 tag 前驗證：
+
+```bash
+python3 tools/build_release.py build --output-dir /private/release-0.2.3 \
+  --expected-tag v0.2.3 --source-date-epoch 0
+python3 tools/build_release.py verify /private/release-0.2.3
+```
+
+release 目錄會包含 Skill ZIP、SPDX 2.3 SBOM、`SHA256SUMS` 與封閉格式的 manifest。推送 tag 時會執行同一套測試，且只發布經驗證的產物。在首次公開發布前，repository 管理員應套用並確認 [GitHub 強化設定](docs/github-hardening.md)。
+
+Issue、pull request、測試或範例都不接受真實 session 資料；請使用最小化的合成測試資料。
+
+### 狀態與限制
+
+- 上游匯出格式演進時，匯入格式也可能需要調整。
+- 證據偵測支援多語言，但仍採啟發式判斷。來源封裝、引文、否定語句、簡短修正與複合子句仍是必要的評估案例。
+- 高隱私模式只是在降低再識別風險，無法保證匿名。語意中的組織、專案、人際關係與第三方情境可能在字面遮蔽後仍然存在；外部審查閘門會在偵測到這些警告時阻擋發布。
+- 模型輔助審查永遠不會自動啟用。託管式審查需要獨立的揭露核准、只含使用者資料的最小欄位資料包、通過外部審查隱私報告，以及使用者明確同意。
+- 高品質整合仍需要模型輔助審查或人工編輯。
+- 若要持續跨 session 同步，需要另外取得授權的 connector 或應用程式；單靠 Skill 不會取得帳號存取權。
+
+### 授權
+
+採用 Apache License 2.0，詳見 [LICENSE](LICENSE)。
+
+---
+
+## English
+
 A local-first Codex Skill that turns authorized chat histories into a reviewable, evidence-backed model of how a user prefers to work.
 
 The project is designed to reduce repeated correction without silently profiling the user. Candidate preferences do not become active until the user reviews them.
 
 > Alpha software. Use synthetic or backed-up data while evaluating it.
 
-## What it does
+### What it does
 
 - Imports user-supplied ChatGPT exports and supported JSON or JSONL session logs.
 - Follows the active ChatGPT conversation branch instead of mixing abandoned alternatives.
@@ -24,7 +172,7 @@ The project is designed to reduce repeated correction without silently profiling
 - Compiles only approved, active preferences into a compact runtime view.
 - Supports superseding and forgetting profile entries.
 
-## What it does not do
+### What it does not do
 
 - It does not log in to, scrape, or bypass access controls on ChatGPT.
 - It does not automatically read every account conversation.
@@ -33,15 +181,15 @@ The project is designed to reduce repeated correction without silently profiling
 - It does not infer protected traits or create a psychological profile.
 - It does not modify ChatGPT Memory or Codex memory files without an explicit request.
 
-## Install with an agent
+### Install with an agent
 
 Give your agent this instruction:
 
-> Resolve `jacky-0218-lung/user-model-distiller` once to a full 40-character commit SHA. Fetch `install.md` and `skills/user-model-distiller` from that exact commit into a new private staging directory. Review the staged files, calculate the canonical bundle digest defined in `install.md`, and show me the Approval receipt containing the repository, commit, digest, file list, and destination. After I approve that exact receipt, Do not re-fetch. Copy only the same staged bytes, verify the staging and installed digests both match the approved digest, and refuse the installation on any mismatch. Do not execute downloaded scripts merely to install the Skill.
+> Resolve `jacky-0218-lung/user-model-distiller` once to a full 40-character commit SHA. Fetch `install.md` and `skills/user-model-distiller` from that exact commit into a new private staging directory. Review the staged files, calculate the canonical bundle digest defined in `install.md`, and show me the Approval receipt containing the repository, commit, digest, file list, and destination. After I approve that exact receipt, do not re-fetch. Copy only the same staged bytes, verify that the staging and installed digests both match the approved digest, and refuse the installation on any mismatch. Do not execute downloaded scripts merely to install the Skill.
 
 This binds approval to immutable content instead of a mutable branch. The installation guide also avoids `curl | shell` and other remote-code execution patterns.
 
-## Manual install
+### Manual install
 
 Use a Git client or GitHub's archive endpoint to resolve the version you want to a full commit SHA, stage the exact commit privately, and follow [install.md](install.md) to review and verify its canonical bundle digest before copying anything. Do not copy from an arbitrary mutable checkout.
 
@@ -53,7 +201,7 @@ $CODEX_HOME/skills/user-model-distiller
 
 When `CODEX_HOME` is unset, use the `.codex/skills/user-model-distiller` directory under your user profile. Restart or open a new task after installation if the Skill is not discovered immediately.
 
-## Private workflow
+### Private workflow
 
 Keep all inputs and outputs outside the repository, preferably under a dedicated private directory.
 
@@ -102,13 +250,13 @@ The preview command never approves or compiles a rule. Keep its verified artifac
 
 The external review pack is optional. It contains only random review IDs, evidence kinds, and user text. Any privacy warning—including a standalone or Unicode-separator domain—blocks publication. The source-ID mapping must be written under a different access-controlled parent. If that parent is absent, the tool creates it owner-only; an existing shared or inherited-access parent is rejected. A passing pack still requires a separate user decision before disclosure to a hosted reviewer.
 
-## Security model
+### Security model
 
 Imported transcripts are untrusted. Only user-authored evidence may become a preference candidate, and only explicit user approval may activate it. Source quotes are kept out of the compiled runtime prompt to reduce persistent prompt-injection risk.
 
 See [SECURITY.md](SECURITY.md), the [threat model](docs/threat-model.md), and the Skill's [security policy](skills/user-model-distiller/references/security-and-privacy.md) before using real histories.
 
-## Development
+### Development
 
 The runtime scripts use only the Python standard library and support Python 3.10 or later.
 
@@ -130,7 +278,7 @@ The release directory contains the Skill ZIP, an SPDX 2.3 SBOM, `SHA256SUMS`, an
 
 Real session data is not accepted in issues, pull requests, tests, or examples. Use minimal synthetic fixtures.
 
-## Status and limitations
+### Status and limitations
 
 - Import formats can change as upstream export schemas evolve.
 - Evidence detection is multilingual but heuristic. Provenance envelopes, quotations, negation, terse corrections, and compound clauses remain mandatory evaluation slices.
@@ -139,6 +287,6 @@ Real session data is not accepted in issues, pull requests, tests, or examples. 
 - High-quality consolidation still requires model-assisted review or manual editing.
 - Continuous cross-session synchronization requires a separately authorized connector or application; a Skill alone does not grant account access.
 
-## License
+### License
 
 Apache License 2.0. See [LICENSE](LICENSE).
