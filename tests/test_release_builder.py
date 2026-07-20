@@ -111,6 +111,18 @@ class ReleaseBuilderTests(unittest.TestCase):
         self.assertIn(type_check, workflow)
         self.assertLess(workflow.index(refetch), workflow.index(type_check))
 
+    def test_release_workflow_pins_publish_repository_without_checkout(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        repository_binding = 'GH_REPO: "${{ github.repository }}"'
+        publish_command = 'gh release create "$RELEASE_TAG"'
+        self.assertIn(repository_binding, workflow)
+        self.assertIn(publish_command, workflow)
+        self.assertLess(
+            workflow.index(repository_binding), workflow.index(publish_command)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
