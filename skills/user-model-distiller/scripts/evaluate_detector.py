@@ -20,7 +20,7 @@ MAX_ID_CHARS = 512
 MAX_BOOTSTRAP = 100_000
 DEFAULT_BOOTSTRAP = 2_000
 WILSON_Z_95 = 1.959963984540054
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 GOLD_FIELDS = frozenset({"message_id", "session_id", "label", "kinds"})
 GOLD_LABELS = frozenset({"positive", "negative", "ambiguous"})

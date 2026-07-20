@@ -33,6 +33,7 @@ jobs:
           RELEASE_TAG: "${{ github.ref_name }}"
         run: |
           set -eu
+          git fetch --force --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
           test "$(git cat-file -t "$RELEASE_TAG")" = "tag"
           test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$EXPECTED_SHA"
           git merge-base --is-ancestor "$EXPECTED_SHA" origin/main

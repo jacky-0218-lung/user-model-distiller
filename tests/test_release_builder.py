@@ -98,6 +98,19 @@ class ReleaseBuilderTests(unittest.TestCase):
                 MODULE.build_release(output, expected_tag="v999.0.0")
             self.assertFalse(output.exists())
 
+    def test_release_workflow_refetches_annotated_tag_before_validation(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        refetch = (
+            'git fetch --force --no-tags origin '
+            '"refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"'
+        )
+        type_check = 'test "$(git cat-file -t "$RELEASE_TAG")" = "tag"'
+        self.assertIn(refetch, workflow)
+        self.assertIn(type_check, workflow)
+        self.assertLess(workflow.index(refetch), workflow.index(type_check))
+
 
 if __name__ == "__main__":
     unittest.main()
