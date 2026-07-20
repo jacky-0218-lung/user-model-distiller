@@ -28,7 +28,7 @@ The project assumes that transcripts and imported archives are untrusted. Its pr
 - accidental publication of normalized histories or profiles;
 - compromised GitHub Actions dependencies.
 
-Mitigations include bounded in-memory ZIP reads without extraction, path and compression checks, role attribution, approval-gated activation, schema validation, atomic writes, restrictive output permissions where supported, privacy-focused `.gitignore` rules, pinned GitHub Actions, CodeQL, and Dependabot. The external-review workflow emits a minimum-field pack only after a strict privacy gate passes and stores its source mapping under a separately isolated parent.
+Mitigations include bounded in-memory ZIP reads without extraction, path and compression checks, role attribution, approval-gated activation, schema validation, atomic writes, restrictive output permissions where supported, privacy-focused `.gitignore` rules, pinned GitHub Actions, CodeQL, and Dependabot. The external-review workflow emits a minimum-field pack only after a strict privacy gate passes and stores its source mapping under a separately isolated parent. Optional continuous use changes only one uniquely marked global `AGENTS.md` block after an exact digest-bound plan, verifies unchanged pre-write bytes, and never edits host-generated Codex memory files.
 
 Secret scanning, push protection, private vulnerability reporting, branch rulesets, and immutable releases are repository-host settings. Maintainers must enable and read back these controls using [the GitHub hardening checklist](docs/github-hardening.md); their presence cannot be inferred from checked-in files alone.
 

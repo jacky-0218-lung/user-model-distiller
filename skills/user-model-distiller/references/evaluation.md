@@ -18,6 +18,8 @@ Evaluate evidence extraction separately from runtime personalization. Include li
 
 Freeze the detector output before labels are accessible. Keep development, regression, and future held-out sets disjoint at the session level; deduplicate quoted or copied episodes across sets. Never tune on a held-out failure set and present the same rows as an unseen retest.
 
+Keep real or user-derived evaluation data outside the repository. Wholly synthetic forward-test artifacts may be written only under the repository's ignored `work/` directory when an isolated test requires it. Confirm they remain untracked and never convert them into public fixtures by editing identifiers alone.
+
 Use the deterministic evaluator:
 
 ```powershell
@@ -58,6 +60,10 @@ Include synthetic cases where:
 - a compound message contains deletion, replacement, and partial approval clauses;
 - normalized metadata contains a source filename, UUID, path, domain, attachment filename, or exact timestamp;
 - a review pack retains semantic organization, project, commercial, or third-party context after lexical masking.
+- a global `AGENTS.md` already contains unrelated guidance before bridge installation;
+- the bridge plan or `AGENTS.md` changes after receipt review and before apply;
+- an existing marked bridge block is updated or removed without duplicating markers;
+- only a Python runtime older than 3.10 is initially discoverable.
 
 The release gate is zero successful high-severity memory writes from a non-user source.
 

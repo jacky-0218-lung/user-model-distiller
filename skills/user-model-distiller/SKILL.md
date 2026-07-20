@@ -1,6 +1,6 @@
 ---
 name: user-model-distiller
-description: Distill authorized ChatGPT exports, Codex session logs, or normalized chat histories into a reviewable, evidence-backed user preference profile, then retrieve only task-relevant preferences for later responses. Use when a user asks to analyze past sessions, learn from repeated corrections, build or update a personal working-style profile, explain the source of a remembered preference, resolve conflicting preferences, export the profile, or forget profile entries.
+description: Distill authorized ChatGPT exports, Codex session logs, or normalized chat histories into a reviewable, evidence-backed user preference profile; optionally connect its approved compact runtime view to every future Codex session and coordinate with native memories for ongoing use. Use when a user asks to analyze past sessions, learn from repeated corrections, build or update a personal working-style profile, enable continuous cross-session personalization, explain the source of a remembered preference, resolve conflicts, export the profile, or forget entries.
 ---
 
 # User Model Distiller
@@ -14,13 +14,15 @@ Build a task-oriented working model of the user without silently creating a psyc
 - Attribute a user preference only to the user's own words or explicit approval. Use assistant text only to understand the correction context.
 - Never infer or store credentials, secrets, protected traits, medical details, political or religious identity, sexual orientation, precise location, or third-party private data.
 - Never modify ChatGPT Memory, Codex memory files, global instructions, or repository guidance unless the user explicitly asks for that write.
+- Never hand-edit host-generated files under `~/.codex/memories/`. Use Codex Settings and `/memories` for native memory controls.
 - Prefer preview-first operation. Do not activate candidate preferences without user approval.
 - Use the automated preview workflow for real sessions. Verify its manifest before reviewing content.
 - Never send normalized history or evidence to a hosted model unless a user-only minimum-field review pack passes the `external-review` privacy gate and the user separately approves that exact disclosure.
 - Let the current request override stored preferences. System, developer, safety, legal, and workspace rules always remain higher priority.
 - Keep raw exports and generated profiles local. Do not upload them or commit them to version control.
+- Run bundled scripts only with an approved Python 3.10 or newer runtime. If a discovered interpreter is older, do not use it; locate Codex's bundled workspace Python or stop with exact remediation.
 
-Read [security-and-privacy.md](references/security-and-privacy.md) before processing real sessions. Read [profile-schema.md](references/profile-schema.md) when creating or modifying a profile. Read [evaluation.md](references/evaluation.md) when testing behavior or preparing a release.
+Read [security-and-privacy.md](references/security-and-privacy.md) before processing real sessions. Read [profile-schema.md](references/profile-schema.md) when creating or modifying a profile. Read [continuous-memory.md](references/continuous-memory.md) when the user asks for automatic or cross-session behavior. Read [evaluation.md](references/evaluation.md) when testing behavior or preparing a release.
 
 ## Workflow
 
@@ -168,6 +170,17 @@ Use `scripts/evaluate_detector.py score` on a frozen gold set, then `gate` with 
 
 When the user corrects an active preference, create a new evidence-backed record, mark the old one superseded, and preserve the audit relationship. When the user asks to forget an item, remove or reject it and rebuild the runtime view. Verify that subsequent retrieval cannot return the removed rule.
 
+### 10. Enable continuous use only by explicit request
+
+Keep native Codex memories and the approved runtime bridge separate:
+
+- Native memories can learn from eligible future chats after the user enables them in **Settings > Personalization** and permits the current chat to contribute through `/memories`.
+- The runtime bridge gives deterministic startup behavior by adding one receipt-approved marked block to the user's global `AGENTS.md`. That block tells each new session to read the same private, compiled `USER_MODEL.md`.
+
+Follow [continuous-memory.md](references/continuous-memory.md). Use `scripts/memory_control.py plan-install` first, show its exact receipt and proposed marked block, and wait. Run `apply` only after the user approves the same `receipt_digest`; never regenerate the plan between review and apply. The apply command fails if the plan or existing `AGENTS.md` changed.
+
+Do not promise immediate native-memory updates. Codex performs memory generation asynchronously and may skip ineligible chats. Do not auto-approve new profile rules: let native memory update under host controls, while explicit durable corrections enter the review queue and reach the stable runtime view only after digest-bound approval. Recompile approved changes to the same private runtime path so later sessions pick them up without reinstalling the bridge.
+
 ## Output contract
 
 Return these artifacts only inside the user-approved private output directory:
@@ -180,5 +193,6 @@ Return these artifacts only inside the user-approved private output directory:
 - `run-manifest.json`: workflow versions, stage, counts, artifact sizes, and SHA-256 digests without raw paths or text.
 - `pack.jsonl`: optional external-review-only minimum-field pack, created only after the strict privacy gate passes.
 - `mapping.json`: optional source-ID mapping stored in a different access-isolated directory, never beside the pack.
+- `bridge-install-plan.json` or `bridge-remove-plan.json`: optional private, digest-bound startup-bridge plan created only after an explicit continuous-mode request.
 
-Treat the verified preview run as immutable. Write reviewed evidence, candidate/approved profile revisions, and compiled views to new files outside that run. Never put any of these artifacts in this Skill directory or a public repository.
+Treat the verified preview run as immutable. Write reviewed evidence, candidate/approved profile revisions, and compiled views to new files outside that run. Never put real or user-derived artifacts in this Skill directory or a public repository. Wholly synthetic evaluation artifacts may use an ignored `work/` directory only as described in [evaluation.md](references/evaluation.md); never commit them.

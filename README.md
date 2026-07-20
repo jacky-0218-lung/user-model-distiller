@@ -65,6 +65,30 @@ $CODEX_HOME/skills/user-model-distiller
 
 若未設定 `CODEX_HOME`，請使用使用者個人目錄下的 `.codex/skills/user-model-distiller`。安裝完成後，如果系統沒有立刻發現 Skill，請重新啟動或開啟新的工作階段。
 
+### 安裝一次、持續使用
+
+單純安裝 Skill 只會讓 Codex 能在適合的任務中選用它。若希望每個新 session 都使用已核准偏好，並隨後續使用持續累積 memory，請另外完成一次受控啟用：
+
+1. 在 Codex 的 **Settings > Personalization** 開啟 memories，並在各 chat 用 `/memories` 允許使用既有 memory 與將該 chat 納入未來 memory。Codex 會在合格 session 閒置後於背景更新，並非每次對話結束就立即寫入。
+2. 先依私有工作流程產生並核准 `profile.json`，再將已核准偏好編譯到固定的私有 `USER_MODEL.md`。
+3. 使用 `memory_control.py plan-install` 產生全域 `AGENTS.md` 的精確變更 receipt。檢查 proposed block 與 digest 後，再以同一份 plan 執行 `apply`。
+4. 之後核准新的偏好時，只要把更新後的 profile 重新編譯到同一個 `USER_MODEL.md`；下一個 session 會讀到新版內容，不必重裝 Skill 或橋接。
+
+```bash
+python3 skills/user-model-distiller/scripts/memory_control.py plan-install \
+  --runtime-view /private/user-model/USER_MODEL.md \
+  --agents-file ~/.codex/AGENTS.md \
+  --authorization-id bridge-review-001 \
+  --output /private/user-model/bridge-install-plan.json
+
+# 先顯示 receipt 並等待使用者核准完全相同的 receipt_digest，之後才執行：
+python3 skills/user-model-distiller/scripts/memory_control.py apply \
+  /private/user-model/bridge-install-plan.json \
+  --expected-digest APPROVED_RECEIPT_DIGEST
+```
+
+這兩層用途不同：Codex 原生 memories 負責自動累積可用脈絡；`USER_MODEL.md` 橋接負責「一定要穩定套用」的已核准偏好。工具不會直接編輯 `~/.codex/memories/` 內的系統產生檔案，也不會把推論出的候選偏好自動核准。
+
 ### 私有工作流程
 
 所有輸入與輸出都應放在 repository 之外，最好使用專門的私有目錄。
@@ -133,9 +157,9 @@ python3 -m compileall -q skills tests tools
 請在 repository 之外建立可重現的 release，並在建立 tag 前驗證：
 
 ```bash
-python3 tools/build_release.py build --output-dir /private/release-0.2.3 \
-  --expected-tag v0.2.3 --source-date-epoch 0
-python3 tools/build_release.py verify /private/release-0.2.3
+python3 tools/build_release.py build --output-dir /private/release-0.3.0 \
+  --expected-tag v0.3.0 --source-date-epoch 0
+python3 tools/build_release.py verify /private/release-0.3.0
 ```
 
 release 目錄會包含 Skill ZIP、SPDX 2.3 SBOM、`SHA256SUMS` 與封閉格式的 manifest。推送 tag 時會執行同一套測試，且只發布經驗證的產物。在首次公開發布前，repository 管理員應套用並確認 [GitHub 強化設定](docs/github-hardening.md)。
@@ -149,7 +173,8 @@ Issue、pull request、測試或範例都不接受真實 session 資料；請使
 - 高隱私模式只是在降低再識別風險，無法保證匿名。語意中的組織、專案、人際關係與第三方情境可能在字面遮蔽後仍然存在；外部審查閘門會在偵測到這些警告時阻擋發布。
 - 模型輔助審查永遠不會自動啟用。託管式審查需要獨立的揭露核准、只含使用者資料的最小欄位資料包、通過外部審查隱私報告，以及使用者明確同意。
 - 高品質整合仍需要模型輔助審查或人工編輯。
-- 若要持續跨 session 同步，需要另外取得授權的 connector 或應用程式；單靠 Skill 不會取得帳號存取權。
+- Codex 原生 memories 必須由使用者開啟，且可能延後或略過部分 session；Skill 不會取得帳號存取權，也不會直接修改系統產生的 memory 檔案。
+- 全域 `AGENTS.md` 橋接只能保證載入已核准的精簡偏好；新的候選偏好仍需審查與 digest-bound 核准，不能靜默升級成穩定規則。
 
 ### 授權
 
@@ -216,6 +241,30 @@ $CODEX_HOME/skills/user-model-distiller
 ```
 
 When `CODEX_HOME` is unset, use the `.codex/skills/user-model-distiller` directory under your user profile. Restart or open a new task after installation if the Skill is not discovered immediately.
+
+### Install once, use continuously
+
+Installing the Skill only makes it available for matching tasks. To use approved preferences in every new session and let memory continue learning from future work, complete one additional controlled activation:
+
+1. Enable memories in Codex **Settings > Personalization**. Use `/memories` per chat to allow both existing-memory use and future-memory contribution. Codex updates eligible idle sessions in the background; updates are not immediate or guaranteed for every chat.
+2. Complete the private review workflow, approve `profile.json` entries, and compile them to one stable private `USER_MODEL.md` path.
+3. Run `memory_control.py plan-install` to produce an exact receipt for the global `AGENTS.md` change. Review the proposed block and digest, then apply the same plan only after approval.
+4. After later preferences are reviewed and approved, recompile to the same `USER_MODEL.md`. New sessions read the updated view without reinstalling the Skill or bridge.
+
+```bash
+python3 skills/user-model-distiller/scripts/memory_control.py plan-install \
+  --runtime-view /private/user-model/USER_MODEL.md \
+  --agents-file ~/.codex/AGENTS.md \
+  --authorization-id bridge-review-001 \
+  --output /private/user-model/bridge-install-plan.json
+
+# Show the receipt and wait for approval of the exact receipt_digest before running:
+python3 skills/user-model-distiller/scripts/memory_control.py apply \
+  /private/user-model/bridge-install-plan.json \
+  --expected-digest APPROVED_RECEIPT_DIGEST
+```
+
+The two layers serve different purposes: native Codex memories automatically carry useful context forward, while the `USER_MODEL.md` bridge deterministically applies reviewed preferences. The tool never edits host-generated files under `~/.codex/memories/` and never auto-approves inferred candidate preferences.
 
 ### Private workflow
 
@@ -285,9 +334,9 @@ python3 -m compileall -q skills tests tools
 Build a deterministic release outside the repository and verify it before tagging:
 
 ```bash
-python3 tools/build_release.py build --output-dir /private/release-0.2.3 \
-  --expected-tag v0.2.3 --source-date-epoch 0
-python3 tools/build_release.py verify /private/release-0.2.3
+python3 tools/build_release.py build --output-dir /private/release-0.3.0 \
+  --expected-tag v0.3.0 --source-date-epoch 0
+python3 tools/build_release.py verify /private/release-0.3.0
 ```
 
 The release directory contains the Skill ZIP, an SPDX 2.3 SBOM, `SHA256SUMS`, and a closed manifest. Tag pushes run the same tests and publish only these verified artifacts. Repository administrators should apply and verify the settings in [GitHub hardening](docs/github-hardening.md) before the first public release.
@@ -301,7 +350,8 @@ Real session data is not accepted in issues, pull requests, tests, or examples. 
 - High privacy is de-identification risk reduction, not guaranteed anonymity. Semantic organization, project, relationship, and third-party context can survive lexical masking; the external-review gate blocks on these warnings.
 - Model-assisted review is never automatic. Hosted review requires a separate disclosure, a user-only minimum-field pack, a passing external-review privacy report, and user approval.
 - High-quality consolidation still requires model-assisted review or manual editing.
-- Continuous cross-session synchronization requires a separately authorized connector or application; a Skill alone does not grant account access.
+- Native Codex memories must be enabled by the user and may delay or skip some sessions; the Skill does not gain account access or directly modify host-generated memory files.
+- The global `AGENTS.md` bridge only guarantees loading of approved compact preferences. New candidates still require review and digest-bound approval before entering the stable runtime view.
 
 ### License
 
