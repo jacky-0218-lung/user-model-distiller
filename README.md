@@ -121,9 +121,9 @@ python3 -m compileall -q skills tests tools
 Build a deterministic release outside the repository and verify it before tagging:
 
 ```bash
-python3 tools/build_release.py build --output-dir /private/release-0.2.2 \
-  --expected-tag v0.2.2 --source-date-epoch 0
-python3 tools/build_release.py verify /private/release-0.2.2
+python3 tools/build_release.py build --output-dir /private/release-0.2.3 \
+  --expected-tag v0.2.3 --source-date-epoch 0
+python3 tools/build_release.py verify /private/release-0.2.3
 ```
 
 The release directory contains the Skill ZIP, an SPDX 2.3 SBOM, `SHA256SUMS`, and a closed manifest. Tag pushes run the same tests and publish only these verified artifacts. Repository administrators should apply and verify the settings in [GitHub hardening](docs/github-hardening.md) before the first public release.

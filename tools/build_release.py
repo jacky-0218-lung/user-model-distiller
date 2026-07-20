@@ -32,6 +32,17 @@ EXPECTED_OUTPUTS = {
     "sbom",
     "checksums",
 }
+BUILDER_ID = "user-model-distiller-release-builder-1.1"
+CANONICAL_TEXT_SUFFIXES = {
+    ".json",
+    ".md",
+    ".py",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
+CANONICAL_TEXT_NAMES = {"LICENSE"}
 
 
 class ReleaseError(ValueError):
@@ -111,6 +122,17 @@ def source_date(source_date_epoch: int) -> str:
     return value.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def canonical_source_bytes(name: str, data: bytes) -> bytes:
+    path = PurePosixPath(name)
+    if path.name not in CANONICAL_TEXT_NAMES and path.suffix.lower() not in CANONICAL_TEXT_SUFFIXES:
+        return data
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReleaseError(f"Canonical text source is not UTF-8: {name}") from exc
+    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+
+
 def collect_files() -> list[tuple[str, bytes]]:
     root = SKILL_ROOT.resolve(strict=True)
     if is_reparse_point(root) or not root.is_dir():
@@ -131,11 +153,11 @@ def collect_files() -> list[tuple[str, bytes]]:
         size = path.stat().st_size
         if size > MAX_FILE_BYTES:
             raise ReleaseError(f"Source file exceeds {MAX_FILE_BYTES} bytes: {relative_path.as_posix()}")
-        data = path.read_bytes()
+        archive_name = (PurePosixPath("user-model-distiller") / relative_path.as_posix()).as_posix()
+        data = canonical_source_bytes(archive_name, path.read_bytes())
         total += len(data)
         if total > MAX_TOTAL_BYTES:
             raise ReleaseError(f"Skill exceeds {MAX_TOTAL_BYTES} total bytes")
-        archive_name = (PurePosixPath("user-model-distiller") / relative_path.as_posix()).as_posix()
         records.append((archive_name, data))
         if len(records) > MAX_FILES:
             raise ReleaseError(f"Skill exceeds {MAX_FILES} files")
@@ -151,7 +173,9 @@ def collect_files() -> list[tuple[str, bytes]]:
     license_name = "user-model-distiller/LICENSE"
     if any(name == license_name for name, _data in records):
         raise ReleaseError("Skill tree unexpectedly shadows the release license")
-    records.append((license_name, license_path.read_bytes()))
+    records.append(
+        (license_name, canonical_source_bytes(license_name, license_path.read_bytes()))
+    )
     records.sort(key=lambda item: item[0])
     return records
 
@@ -225,7 +249,7 @@ def spdx_document(
         ),
         "creationInfo": {
             "created": created,
-            "creators": ["Tool: user-model-distiller-release-builder-1.0"],
+            "creators": [f"Tool: {BUILDER_ID}"],
         },
         "documentDescribes": ["SPDXRef-Package"],
         "packages": [
@@ -313,7 +337,7 @@ def build_release(
     }
     manifest = {
         "schema_version": "1.0",
-        "builder": "user-model-distiller-release-builder-1.0",
+        "builder": BUILDER_ID,
         "package": "user-model-distiller",
         "version": version,
         "source_date_epoch": source_date_epoch,
@@ -384,7 +408,7 @@ def verify_release(output_dir: Path) -> dict[str, Any]:
         raise ReleaseError("Release manifest has unexpected or missing fields")
     if manifest.get("schema_version") != "1.0":
         raise ReleaseError("Release manifest schema version is unsupported")
-    if manifest.get("builder") != "user-model-distiller-release-builder-1.0":
+    if manifest.get("builder") != BUILDER_ID:
         raise ReleaseError("Release manifest builder identity is invalid")
     if manifest.get("package") != "user-model-distiller":
         raise ReleaseError("Release manifest package identity is invalid")
