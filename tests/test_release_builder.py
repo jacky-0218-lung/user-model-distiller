@@ -15,6 +15,27 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ReleaseBuilderTests(unittest.TestCase):
+    def test_canonical_source_bytes_normalizes_text_without_touching_binary(self) -> None:
+        self.assertEqual(
+            b"line one\nline two\n",
+            MODULE.canonical_source_bytes(
+                "user-model-distiller/agents/openai.yaml",
+                b"line one\r\nline two\r",
+            ),
+        )
+        binary = b"\x89PNG\r\n\x1a\n\x00\r\n"
+        self.assertEqual(
+            binary,
+            MODULE.canonical_source_bytes(
+                "user-model-distiller/assets/icon.png", binary
+            ),
+        )
+
+    def test_collected_yaml_is_lf_canonical_on_windows(self) -> None:
+        records = dict(MODULE.collect_files())
+        data = records["user-model-distiller/agents/openai.yaml"]
+        self.assertNotIn(b"\r", data)
+
     def test_build_verify_and_reproduce(self) -> None:
         with tempfile.TemporaryDirectory() as parent:
             first = Path(parent) / "release-a"
