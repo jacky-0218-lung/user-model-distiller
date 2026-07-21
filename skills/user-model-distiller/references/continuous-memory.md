@@ -24,11 +24,11 @@ Do not change these controls on the user's behalf unless the host exposes an exp
 
 First compile only approved preferences to a stable private runtime path. Then create a plan; do not apply it in the same approval step.
 
-```powershell
-python scripts/memory_control.py plan-install `
-  --runtime-view PRIVATE_DIR/USER_MODEL.md `
-  --agents-file CODEX_HOME/AGENTS.md `
-  --authorization-id BRIDGE_REVIEW_ID `
+```bash
+python scripts/memory_control.py plan-install \
+  --runtime-view PRIVATE_DIR/USER_MODEL.md \
+  --agents-file CODEX_HOME/AGENTS.md \
+  --authorization-id BRIDGE_REVIEW_ID \
   --output PRIVATE_DIR/bridge-install-plan.json
 ```
 
@@ -36,8 +36,8 @@ Show the receipt fields except `after_text`, plus a compact diff of the proposed
 
 After approval, apply the same plan without regenerating it:
 
-```powershell
-python scripts/memory_control.py apply PRIVATE_DIR/bridge-install-plan.json `
+```bash
+python scripts/memory_control.py apply PRIVATE_DIR/bridge-install-plan.json \
   --expected-digest APPROVED_RECEIPT_DIGEST
 python scripts/memory_control.py status --agents-file CODEX_HOME/AGENTS.md
 ```
@@ -59,12 +59,12 @@ Turning off native memories and removing the deterministic bridge are separate a
 
 To remove the bridge, create and approve a new exact plan:
 
-```powershell
-python scripts/memory_control.py plan-remove `
-  --agents-file CODEX_HOME/AGENTS.md `
-  --authorization-id BRIDGE_REMOVAL_REVIEW_ID `
+```bash
+python scripts/memory_control.py plan-remove \
+  --agents-file CODEX_HOME/AGENTS.md \
+  --authorization-id BRIDGE_REMOVAL_REVIEW_ID \
   --output PRIVATE_DIR/bridge-remove-plan.json
-python scripts/memory_control.py apply PRIVATE_DIR/bridge-remove-plan.json `
+python scripts/memory_control.py apply PRIVATE_DIR/bridge-remove-plan.json \
   --expected-digest APPROVED_RECEIPT_DIGEST
 ```
 

@@ -22,10 +22,10 @@ Keep real or user-derived evaluation data outside the repository. Wholly synthet
 
 Use the deterministic evaluator:
 
-```powershell
-python scripts/evaluate_detector.py score GOLD.jsonl DETECTOR.jsonl `
+```bash
+python scripts/evaluate_detector.py score GOLD.jsonl DETECTOR.jsonl \
   --output REPORT.json --seed 0 --bootstrap 2000
-python scripts/evaluate_detector.py gate REPORT.json `
+python scripts/evaluate_detector.py gate REPORT.json \
   --min-precision 0.90 --min-recall 0.80 --max-sensitive-leakage 0
 ```
 
