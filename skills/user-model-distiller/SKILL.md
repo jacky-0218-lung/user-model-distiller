@@ -42,8 +42,8 @@ Do not automate account login, browser scraping, or cross-account collection.
 
 Prefer `scripts/distill_workflow.py` for real inputs. It refuses repository-local outputs, overlapping source/output trees, UNC paths, links, junctions, and existing destinations. It stages the run privately, normalizes, runs the local privacy gate, builds evidence, initializes an empty profile, hashes every artifact, then publishes the complete run atomically.
 
-```powershell
-python scripts/distill_workflow.py preview INPUT `
+```bash
+python scripts/distill_workflow.py preview INPUT \
   --output-dir PRIVATE_DIR/RUN_ID --authorization-id AUTHORIZATION_ID --privacy high
 python scripts/distill_workflow.py verify PRIVATE_DIR/RUN_ID
 ```
@@ -58,7 +58,7 @@ Run `scripts/normalize_sessions.py` with an explicit input and output path. The 
 
 Resolve an approved Python 3.10+ runtime before running the workflow. On Windows, try `py -3`; if that launcher has no interpreter in Codex desktop, use the workspace-dependency locator to obtain Codex's bundled Python path. Do not silently reimplement the deterministic scripts merely because `python` is absent.
 
-```powershell
+```bash
 python scripts/normalize_sessions.py INPUT --output PRIVATE_DIR/normalized.jsonl --privacy high
 ```
 
@@ -68,7 +68,7 @@ Use `--privacy standard` only when the user wants email addresses or phone numbe
 
 Run `scripts/collect_evidence.py` to identify likely explicit preferences, corrections, and approvals. It suppresses common quoted spans and obvious non-preference task phrases, but remains heuristic. This queue is a search aid, not a user model.
 
-```powershell
+```bash
 python scripts/collect_evidence.py PRIVATE_DIR/normalized.jsonl --output PRIVATE_DIR/evidence.jsonl
 ```
 
@@ -83,10 +83,10 @@ Treat one-off task requirements as episodic context, not global preferences.
 
 Before model-assisted inspection, determine whether the model is local or hosted. If selected evidence would leave the local machine, use `scripts/prepare_review_pack.py`; do not hand-build a disclosure copy. It emits only random review IDs, evidence kinds, and user text, runs the strict `external-review` gate, and keeps the source-ID mapping in a separately access-isolated directory. The mapping parent may be absent: the tool will create it owner-only. If it already exists, the tool requires owner-only POSIX permissions or a protected Windows ACL with no foreign allow entries. The public pack manifest records only the mapping hash, never its path or authorization ID.
 
-```powershell
-python scripts/prepare_review_pack.py prepare PRIVATE_DIR/evidence.jsonl `
-  --output-dir PRIVATE_DIR/external-pack/RUN_ID `
-  --mapping-output ACCESS_ISOLATED_DIR/RUN_ID-mapping.json `
+```bash
+python scripts/prepare_review_pack.py prepare PRIVATE_DIR/evidence.jsonl \
+  --output-dir PRIVATE_DIR/external-pack/RUN_ID \
+  --mapping-output ACCESS_ISOLATED_DIR/RUN_ID-mapping.json \
   --authorization-id DISCLOSURE_APPROVAL_ID
 python scripts/prepare_review_pack.py verify PRIVATE_DIR/external-pack/RUN_ID
 ```
@@ -97,13 +97,13 @@ If the result is `blocked`, no pack or mapping is created; do not disclose the e
 
 Create a profile with `scripts/profile_tool.py init`. After the user reviews an evidence item, bind the decision to an authorization ID. `add-candidate` refuses unreviewed, indirect, or truncated evidence. Repeat `--message-id` to combine corroborating evidence.
 
-```powershell
-python scripts/profile_tool.py review-evidence PRIVATE_DIR/evidence.jsonl `
-  --message-id MESSAGE_ID --decision accepted `
+```bash
+python scripts/profile_tool.py review-evidence PRIVATE_DIR/evidence.jsonl \
+  --message-id MESSAGE_ID --decision accepted \
   --authorization-id REVIEW_AUTHORIZATION --output PRIVATE_DIR/reviewed-evidence.jsonl
-python scripts/profile_tool.py add-candidate PRIVATE_DIR/profile.json PRIVATE_DIR/reviewed-evidence.jsonl `
-  --id pref_conclusion_first --rule "Lead with the conclusion." `
-  --category response_style --confidence 0.9 --message-id MESSAGE_ID `
+python scripts/profile_tool.py add-candidate PRIVATE_DIR/profile.json PRIVATE_DIR/reviewed-evidence.jsonl \
+  --id pref_conclusion_first --rule "Lead with the conclusion." \
+  --category response_style --confidence 0.9 --message-id MESSAGE_ID \
   --output PRIVATE_DIR/candidate-profile.json
 ```
 
@@ -143,10 +143,10 @@ For every proposal, show the rule, scope, confidence, and a short source referen
 
 After the user accepts a candidate, calculate its digest, show the exact rule, scope, sensitivity, evidence references, and digest, then obtain approval for that exact subject. The generic `set-status` command cannot approve a preference.
 
-```powershell
+```bash
 python scripts/profile_tool.py candidate-digest PRIVATE_DIR/candidate-profile.json PREF_ID
-python scripts/profile_tool.py approve PRIVATE_DIR/candidate-profile.json PREF_ID `
-  --authorization-id APPROVAL_ID --expected-digest REVIEWED_DIGEST `
+python scripts/profile_tool.py approve PRIVATE_DIR/candidate-profile.json PREF_ID \
+  --authorization-id APPROVAL_ID --expected-digest REVIEWED_DIGEST \
   --output PRIVATE_DIR/approved-profile.json
 python scripts/profile_tool.py validate PRIVATE_DIR/approved-profile.json
 ```
@@ -155,8 +155,8 @@ python scripts/profile_tool.py validate PRIVATE_DIR/approved-profile.json
 
 Compile only approved, non-expired, non-sensitive rules:
 
-```powershell
-python scripts/profile_tool.py compile PRIVATE_DIR/approved-profile.json `
+```bash
+python scripts/profile_tool.py compile PRIVATE_DIR/approved-profile.json \
   --output PRIVATE_DIR/USER_MODEL.md --as-of 2026-07-20T00:00:00Z
 ```
 
