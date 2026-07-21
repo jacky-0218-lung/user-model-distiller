@@ -1,0 +1,43 @@
+name: Auto-open weekly PR
+
+# 當 weekly-improve-* 分支被 push 時,若尚無對應的 open PR,便自動開一個。
+# 於 GitHub 端以內建的 GITHUB_TOKEN 執行,不依賴任何沙箱對 api.github.com 的存取,
+# 也不使用外部 action(故無需釘 commit SHA)與 checkout(故無 persisted credentials)。
+# 需求:repo 設定 Settings > Actions > General > Workflow permissions 需允許
+# "Allow GitHub Actions to create and approve pull requests"。
+
+on:
+  push:
+    branches:
+      - 'weekly-improve-*'
+
+permissions:
+  contents: read
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Open a PR for the pushed weekly-improve branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          existing=$(gh api "repos/${REPO}/pulls?state=open&head=${OWNER}:${BRANCH}" --jq 'length')
+          if [ "${existing}" -ne 0 ]; then
+            echo "已存在針對 ${BRANCH} 的 open PR,略過。"
+            exit 0
+          fi
+          gh api "repos/${REPO}/pulls" \
+            -f title="每週改進:${BRANCH}" \
+            -f head="${BRANCH}" \
+            -f base="main" \
+            -f body="由 ${BRANCH} 分支自動建立的 PR。請檢視本週改動與 docs/weekly-reviews/ 內的診斷報告後再合併。此 PR 由 .github/workflows/auto-pr.yml 自動開立。" \
+            -F draft=false
+          echo "已為 ${BRANCH} 開立 PR。"
