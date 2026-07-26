@@ -50,6 +50,9 @@ Mark necessary but sensitive user-provided facts as `sensitive`. Keep them exclu
 - Store only a reference to assistant context, not assistant text, in the evidence queue.
 - Separate evidence collection from profile approval.
 - Require a user evidence-review receipt before candidate creation and a second digest-bound approval before activation.
+- Remove characters that hide content from the reviewer before cue scoring. `normalize_sessions.py` strips the Unicode Tag block (U+E0000-U+E007F), bidi embedding, override, and isolate controls, zero-width and word-joining spaces, interlinear annotation marks, soft hyphens, and C0/C1 controls other than tab and newline, and counts each removal in `redaction_count`. A reviewer can only approve text they can see.
+- Keep U+200C and U+200D: Persian, Arabic, Indic, and emoji sequences need them. `privacy_guard.py` raises the `zero_width_joiner` warning instead, so a reviewer looks before approving or disclosing that text.
+- Treat hidden characters in an already-normalized file as tampering. `privacy_guard.py` blocks `deceptive_invisible_characters` in both modes, because the bundled normalizer cannot emit them.
 - Exclude source quotes from the runtime prompt.
 - Validate every profile edit against the schema and allowed values.
 - Keep superseded records from compiling.

@@ -19,6 +19,23 @@ FORBIDDEN_NAMES = (
     re.compile(r"^\.env(?:\..*)?$", re.I),
 )
 ABSOLUTE_USER_PATH = re.compile(rb"[A-Za-z]:\\Users\\[^\\\r\n]+", re.I)
+# A published Skill is agent context, so a character that a reviewer cannot see
+# but a model still reads is a supply-chain defect in this repository, not only
+# in the transcripts the Skill processes. Keep this class identical to
+# normalize_sessions.DECEPTIVE_INVISIBLE_PATTERN and write it with escapes so
+# the guard can never match its own source.
+DECEPTIVE_INVISIBLE = re.compile(
+    "["
+    "\u00ad"  # soft hyphen
+    "\u200b"  # zero-width space
+    "\u202a-\u202e"  # bidi embedding and override controls
+    "\u2060-\u2064"  # word joiner and invisible math operators
+    "\u2066-\u2069"  # bidi isolate controls
+    "\ufeff"  # zero-width no-break space / byte-order mark
+    "\ufff9-\ufffb"  # interlinear annotation controls
+    "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "]"
+)
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s]+)\s*$", re.M)
 FULL_SHA = re.compile(r"^[^@]+@[0-9a-f]{40}(?:\s+#.*)?$", re.I)
 
@@ -49,6 +66,17 @@ def main() -> int:
         data = path.read_bytes()
         if b"\x00" in data:
             errors.append(f"binary or NUL-containing file: {relative}")
+        try:
+            decoded = data.decode("utf-8")
+        except UnicodeDecodeError:
+            decoded = None
+        if decoded is not None:
+            hidden = DECEPTIVE_INVISIBLE.search(decoded)
+            if hidden:
+                errors.append(
+                    f"invisible or bidi control character "
+                    f"U+{ord(hidden.group()):04X} found: {relative}"
+                )
         if path != Path(__file__) and ABSOLUTE_USER_PATH.search(data):
             errors.append(f"local user path found: {relative}")
         if relative.parts[:2] == (".github", "workflows"):

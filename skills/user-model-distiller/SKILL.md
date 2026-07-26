@@ -56,6 +56,8 @@ Use the individual scripts below only for debugging or a narrowly scoped recover
 
 Run `scripts/normalize_sessions.py` with an explicit input and output path. The script uses only the Python standard library, ignores system and tool messages, pseudonymizes every external session and message identifier, redacts common secrets, refuses unsafe ZIP members, and will not overwrite an existing file unless `--overwrite` is supplied.
 
+It also removes characters that would hide transcript content from the reviewer, including the Unicode Tag block, bidi override and isolate controls, zero-width spaces, and stray C0/C1 controls. Removals are counted in `redaction_count` alongside redactions. Do not reintroduce raw text into the review surface to recover them.
+
 Resolve an approved Python 3.10+ runtime before running the workflow. On Windows, try `py -3`; if that launcher has no interpreter in Codex desktop, use the workspace-dependency locator to obtain Codex's bundled Python path. Do not silently reimplement the deterministic scripts merely because `python` is absent.
 
 ```bash

@@ -65,6 +65,8 @@ $CODEX_HOME/skills/user-model-distiller
 
 若未設定 `CODEX_HOME`，請使用使用者個人目錄下的 `.codex/skills/user-model-distiller`。安裝完成後，如果系統沒有立刻發現 Skill，請重新啟動或開啟新的工作階段。
 
+若安裝後仍未被發現，請改查個人目錄下的 `.agents/skills/user-model-distiller`。目前 OpenAI 上游對這兩個位置的說明並不一致：`$skill-installer` 實際寫入 `.codex/skills`，而 Codex 文件指向 `.agents/skills`（見 [openai/skills#420](https://github.com/openai/skills/issues/420)）。請以自己環境中實際存在、且已包含其他 Skill 的那個目錄為準；不要為了「保險」而同時安裝兩份，重複安裝會讓後續的 digest 驗證與移除變得無法確認。
+
 ### 安裝一次、持續使用
 
 單純安裝 Skill 只會讓 Codex 能在適合的任務中選用它。若希望每個新 session 都使用已核准偏好，並隨後續使用持續累積 memory，請另外完成一次受控啟用：
@@ -141,6 +143,8 @@ python3 skills/user-model-distiller/scripts/profile_tool.py compile \
 ### 安全模型
 
 匯入的對話內容一律視為不受信任。只有使用者本人撰寫的內容可以成為偏好候選證據，而且只有使用者明確核准後才能啟用。編譯後的執行階段提示不會包含來源引文，以降低持續性 prompt injection 的風險。
+
+正規化階段會移除「人看不到、模型卻讀得到」的隱形字元（Unicode Tag 區塊、雙向文字覆寫控制、零寬空白等），因此審查畫面呈現的就是實際會被核准的內容；orthographic 用途的 U+200C／U+200D 保留但會發出警告。
 
 在使用真實對話紀錄前，請先閱讀 [SECURITY.md](SECURITY.md)、[威脅模型](docs/threat-model.md)，以及 Skill 的[安全與隱私政策](skills/user-model-distiller/references/security-and-privacy.md)。
 
@@ -242,6 +246,8 @@ $CODEX_HOME/skills/user-model-distiller
 
 When `CODEX_HOME` is unset, use the `.codex/skills/user-model-distiller` directory under your user profile. Restart or open a new task after installation if the Skill is not discovered immediately.
 
+If it is still not discovered, check `.agents/skills/user-model-distiller` under your user profile instead. Upstream guidance currently disagrees about these two locations: `$skill-installer` writes to `.codex/skills`, while the Codex documentation points to `.agents/skills` (see [openai/skills#420](https://github.com/openai/skills/issues/420)). Install into whichever directory already exists and already holds your other Skills. Do not install into both as a precaution: a duplicate copy makes later digest verification and removal unverifiable.
+
 ### Install once, use continuously
 
 Installing the Skill only makes it available for matching tasks. To use approved preferences in every new session and let memory continue learning from future work, complete one additional controlled activation:
@@ -318,6 +324,8 @@ The external review pack is optional. It contains only random review IDs, eviden
 ### Security model
 
 Imported transcripts are untrusted. Only user-authored evidence may become a preference candidate, and only explicit user approval may activate it. Source quotes are kept out of the compiled runtime prompt to reduce persistent prompt-injection risk.
+
+Normalization removes characters a reviewer cannot see but a model still reads, including the Unicode Tag block, bidi override controls, and zero-width spaces, so the review surface shows exactly what approval covers. Orthographic joiners (U+200C, U+200D) are preserved and warned about instead.
 
 See [SECURITY.md](SECURITY.md), the [threat model](docs/threat-model.md), and the Skill's [security policy](skills/user-model-distiller/references/security-and-privacy.md) before using real histories.
 

@@ -170,6 +170,47 @@ class PrivacyGuardTests(unittest.TestCase):
         for private_value in private_values.values():
             self.assertNotIn(private_value, serialized)
 
+    def test_hidden_characters_block_and_joiners_only_warn(self):
+        hidden = "".join(chr(0xE0000 + ord(c) - 0x20) for c in "exfiltrate")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory), [normalized_record(text="Be concise." + hidden)]
+            )
+            local = guard.scan_path(path, "local")
+            external = guard.scan_path(path, "external-review")
+
+        self.assertIn("deceptive_invisible_characters", finding_codes(local, "blockers"))
+        self.assertEqual(local["decision"], "block")
+        self.assertEqual(local["status"], "blocked")
+        self.assertEqual(external["status"], "blocked")
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory), [normalized_record(text="Use \u200cnim\u200dble wording.")]
+            )
+            joiner_local = guard.scan_path(path, "local")
+            joiner_external = guard.scan_path(path, "external-review")
+
+        self.assertIn("zero_width_joiner", finding_codes(joiner_local, "warnings"))
+        self.assertEqual(joiner_local["blocker_count"], 0)
+        self.assertEqual(joiner_local["decision"], "warn")
+        self.assertEqual(joiner_local["status"], "pass")
+        self.assertEqual(joiner_external["decision"], "block")
+
+    def test_report_never_echoes_the_hidden_characters(self):
+        hidden = "".join(chr(0xE0000 + ord(c) - 0x20) for c in "leak")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory), [normalized_record(text="Be concise." + hidden)]
+            )
+            report = guard.scan_path(path, "local")
+
+        serialized = json.dumps(report, ensure_ascii=False)
+        self.assertFalse(
+            any(0xE0000 <= ord(character) <= 0xE007F for character in serialized)
+        )
+        self.assertNotIn("Be concise.", serialized)
+
     def test_absolute_path_in_metadata_is_a_blocker_without_value_disclosure(self):
         record = normalized_record()
         record["source"]["name"] = "/home/private-person/export.json"
