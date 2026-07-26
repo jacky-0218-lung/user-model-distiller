@@ -65,6 +65,8 @@ $CODEX_HOME/skills/user-model-distiller
 
 若未設定 `CODEX_HOME`，請使用使用者個人目錄下的 `.codex/skills/user-model-distiller`。安裝完成後，如果系統沒有立刻發現 Skill，請重新啟動或開啟新的工作階段。
 
+若安裝後仍未被發現，請改查個人目錄下的 `.agents/skills/user-model-distiller`。目前 OpenAI 上游對這兩個位置的說明並不一致：`$skill-installer` 實際寫入 `.codex/skills`，而 Codex 文件指向 `.agents/skills`（見 [openai/skills#420](https://github.com/openai/skills/issues/420)）。請以自己環境中實際存在、且已包含其他 Skill 的那個目錄為準；不要為了「保險」而同時安裝兩份，重複安裝會讓後續的 digest 驗證與移除變得無法確認。
+
 ### 安裝一次、持續使用
 
 單純安裝 Skill 只會讓 Codex 能在適合的任務中選用它。若希望每個新 session 都使用已核准偏好，並隨後續使用持續累積 memory，請另外完成一次受控啟用：
@@ -243,6 +245,8 @@ $CODEX_HOME/skills/user-model-distiller
 ```
 
 When `CODEX_HOME` is unset, use the `.codex/skills/user-model-distiller` directory under your user profile. Restart or open a new task after installation if the Skill is not discovered immediately.
+
+If it is still not discovered, check `.agents/skills/user-model-distiller` under your user profile instead. Upstream guidance currently disagrees about these two locations: `$skill-installer` writes to `.codex/skills`, while the Codex documentation points to `.agents/skills` (see [openai/skills#420](https://github.com/openai/skills/issues/420)). Install into whichever directory already exists and already holds your other Skills. Do not install into both as a precaution: a duplicate copy makes later digest verification and removal unverifiable.
 
 ### Install once, use continuously
 
