@@ -21,7 +21,7 @@ from typing import Any, Iterable, Iterator
 
 
 SCHEMA_VERSION = "1.0"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 DEFAULT_MAX_MEMBER_BYTES = 128 * 1024 * 1024
 DEFAULT_MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
@@ -82,6 +82,34 @@ HIGH_PRIVACY_PATTERNS = (
 )
 
 
+# Characters a human reviewer cannot see but a language model still reads.
+# Unicode Tag characters and the bidi override/isolate controls are documented
+# vectors for hiding adversarial instructions inside a visually clean
+# transcript, so remove them before any cue scoring or review rendering.
+# U+200C and U+200D are deliberately excluded: Persian, Arabic, Indic, and
+# emoji sequences need them, and privacy_guard.py warns about them instead.
+DECEPTIVE_INVISIBLE_PATTERN = re.compile(
+    "["
+    "\u00ad"  # soft hyphen
+    "\u200b"  # zero-width space
+    "\u202a-\u202e"  # bidi embedding and override controls
+    "\u2060-\u2064"  # word joiner and invisible math operators
+    "\u2066-\u2069"  # bidi isolate controls
+    "\ufeff"  # zero-width no-break space / byte-order mark
+    "\ufff9-\ufffb"  # interlinear annotation controls
+    "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "]"
+)
+
+# C0 and C1 controls other than tab and newline carry no text meaning and can
+# hide content from a terminal or diff view. NUL is covered by this class.
+CONTROL_CHARACTER_PATTERN = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# privacy_guard.py rejects a record whose redaction_count exceeds this bound.
+# Cap the reported figure so a pathological input cannot invalidate the record.
+MAX_REPORTED_REDACTIONS = 1_000_000
+
+
 class NormalizationError(ValueError):
     """Raised when an input is unsafe or unsupported."""
 
@@ -132,6 +160,20 @@ def safe_external_id(value: Any, prefix: str, *fallback_parts: object) -> str:
     # Syntactically safe identifiers may still disclose customer or project
     # metadata. Preserve stable provenance without retaining the external value.
     return stable_id(prefix, *fallback_parts, value)
+
+
+def sanitize_untrusted_text(text: str) -> tuple[str, int]:
+    """Remove characters that hide transcript content from a human reviewer.
+
+    Returns the sanitized text and the number of characters removed. Removal
+    runs before redaction so a hidden character cannot split a secret past a
+    secret pattern, and before cue scoring so an invisible instruction cannot
+    reach the evidence queue or the review surface.
+    """
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    cleaned, deceptive = DECEPTIVE_INVISIBLE_PATTERN.subn("", normalized)
+    cleaned, controls = CONTROL_CHARACTER_PATTERN.subn("", cleaned)
+    return cleaned, deceptive + controls
 
 
 def redact_text(text: str, privacy: str) -> tuple[str, int]:
@@ -209,10 +251,12 @@ def normalize_record(
     role = role.lower().strip()
     if role not in ALLOWED_ROLES:
         return None
-    text = text.replace("\x00", "").strip()
+    text, sanitized_count = sanitize_untrusted_text(text)
+    text = text.strip()
     if not text:
         return None
     redacted, redaction_count = redact_text(text, privacy)
+    total_removed = min(redaction_count + sanitized_count, MAX_REPORTED_REDACTIONS)
     return {
         "schema_version": SCHEMA_VERSION,
         "session_id": session_id,
@@ -220,7 +264,7 @@ def normalize_record(
         "role": role,
         "created_at": privacy_timestamp(created_at, privacy),
         "text": redacted,
-        "redaction_count": redaction_count,
+        "redaction_count": total_removed,
         "source": {
             "id": stable_id("source", source_sha256),
             "sha256": source_sha256,

@@ -23,7 +23,7 @@ from typing import Any, Iterable
 
 REPORT_SCHEMA_VERSION = "1.0"
 NORMALIZED_SCHEMA_VERSION = "1.0"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 MAX_LINE_BYTES = 1024 * 1024
@@ -76,6 +76,28 @@ UNIX_PATH_RE = re.compile(
     r"(?<![:A-Za-z0-9])/(?:[^/\s<>\"']+/)+[^/\s<>\"']+"
 )
 LONG_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{24,}(?![A-Za-z0-9_-])")
+
+# Mirror normalize_sessions.DECEPTIVE_INVISIBLE_PATTERN. A record produced by
+# the bundled normalizer can never contain these characters, so their presence
+# means the file was hand-built or altered after normalization. Treat that as a
+# blocker: the reviewer would approve text they cannot see.
+DECEPTIVE_INVISIBLE_RE = re.compile(
+    "["
+    "\u00ad"  # soft hyphen
+    "\u200b"  # zero-width space
+    "\u202a-\u202e"  # bidi embedding and override controls
+    "\u2060-\u2064"  # word joiner and invisible math operators
+    "\u2066-\u2069"  # bidi isolate controls
+    "\ufeff"  # zero-width no-break space / byte-order mark
+    "\ufff9-\ufffb"  # interlinear annotation controls
+    "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "]"
+)
+
+# Kept by the normalizer because Persian, Arabic, Indic, and emoji sequences
+# need them, but they can still split a token past a pattern match. Warn so a
+# reviewer can look before approving or disclosing the text.
+ZERO_WIDTH_JOINER_RE = re.compile("[\u200c\u200d]")
 
 SECRET_PATTERNS = (
     re.compile(
@@ -234,6 +256,8 @@ def _scan_blockers(text: str) -> set[str]:
         findings.add("raw_long_identifier")
     if any(pattern.search(text) for pattern in SECRET_PATTERNS):
         findings.add("raw_secret")
+    if DECEPTIVE_INVISIBLE_RE.search(text):
+        findings.add("deceptive_invisible_characters")
     return findings
 
 
@@ -249,6 +273,8 @@ def _scan_warnings(text: str) -> set[str]:
         findings.add("commercial_amount")
     if CONTEXT_RE.search(text):
         findings.add("project_client_contract_confidential_context")
+    if ZERO_WIDTH_JOINER_RE.search(text):
+        findings.add("zero_width_joiner")
     return findings
 
 

@@ -142,6 +142,8 @@ python3 skills/user-model-distiller/scripts/profile_tool.py compile \
 
 匯入的對話內容一律視為不受信任。只有使用者本人撰寫的內容可以成為偏好候選證據，而且只有使用者明確核准後才能啟用。編譯後的執行階段提示不會包含來源引文，以降低持續性 prompt injection 的風險。
 
+正規化階段會移除「人看不到、模型卻讀得到」的隱形字元（Unicode Tag 區塊、雙向文字覆寫控制、零寬空白等），因此審查畫面呈現的就是實際會被核准的內容；orthographic 用途的 U+200C／U+200D 保留但會發出警告。
+
 在使用真實對話紀錄前，請先閱讀 [SECURITY.md](SECURITY.md)、[威脅模型](docs/threat-model.md)，以及 Skill 的[安全與隱私政策](skills/user-model-distiller/references/security-and-privacy.md)。
 
 ### 開發
@@ -318,6 +320,8 @@ The external review pack is optional. It contains only random review IDs, eviden
 ### Security model
 
 Imported transcripts are untrusted. Only user-authored evidence may become a preference candidate, and only explicit user approval may activate it. Source quotes are kept out of the compiled runtime prompt to reduce persistent prompt-injection risk.
+
+Normalization removes characters a reviewer cannot see but a model still reads, including the Unicode Tag block, bidi override controls, and zero-width spaces, so the review surface shows exactly what approval covers. Orthographic joiners (U+200C, U+200D) are preserved and warned about instead.
 
 See [SECURITY.md](SECURITY.md), the [threat model](docs/threat-model.md), and the Skill's [security policy](skills/user-model-distiller/references/security-and-privacy.md) before using real histories.
 

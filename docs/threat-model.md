@@ -19,7 +19,7 @@ This model covers the local import, evidence selection, profile review, compilat
 Untrusted archive / transcript
              |
              v
-Bounded local normalizer -- common-secret redaction
+Bounded local normalizer -- hidden-character removal, common-secret redaction
              |
              v
 Untrusted evidence queue -- human review and schema validation
@@ -43,11 +43,13 @@ Imported content remains untrusted after parsing. Approval changes whether a pre
 | ZIP traversal, links, encryption, or decompression bomb | File overwrite or resource exhaustion | Never extract members; reject traversal, links, encrypted entries, oversized data, and extreme ratios |
 | Credentials in transcripts | Disclosure through intermediate files or commits | Default redaction, high-privacy mode, private output permissions, ignore rules, GitHub push protection |
 | Assistant or tool memory poisoning | Persistent behavior manipulation | Normalize only user and assistant dialogue; evidence candidates only from user role; approval gate; no source quotes in runtime view |
+| Instructions hidden in invisible characters | Reviewer approves text they cannot see; hidden directive reaches the model or splits a secret past redaction | Strip Unicode Tag, bidi control, zero-width, and C0/C1 characters before scoring; count removals; block them as tampering if a normalized file still contains them; warn on orthographic joiners; reject them in tracked repository files |
 | Malicious external identifiers | Markdown injection or confusing provenance | Replace unsafe session and message identifiers with stable hashes |
 | Incorrect or stale preference | Repeated bad output | Confidence, scope, timestamps, supersession, explicit review, current-request precedence |
 | Sensitive inference | Privacy harm or discrimination | Prohibited-category policy; sensitive exclusion by default; no automatic activation |
 | Incomplete deletion | Continued unwanted personalization | Profile removal, recompilation, cache/index checks, honest reporting of external copies |
 | Accidental public commit | Permanent privacy exposure | Synthetic-only contribution policy, privacy-focused ignore rules, repository guard, secret scanning |
+| Tampered published Skill text | Installers load agent context that review did not show them | Repository guard rejects invisible and bidi control characters in tracked files; canonical bundle digest; full-SHA install pinning; per-file review |
 | Workflow supply-chain compromise | Code execution in CI | Read-only default token, full-SHA action pins, disabled persisted checkout credentials, Dependabot |
 | Unbounded profile growth | Cost, distraction, reduced quality | Record and evidence limits; compact compiler; task-relevant retrieval guidance |
 | Global guidance overwrite or confused-deputy update | Loss of unrelated instructions or persistent behavior injection | Unique markers; exact plan digest; compare-before-write hash; atomic replacement; preserve all unmarked content |
