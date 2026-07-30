@@ -84,7 +84,7 @@ After digest-bound approval, `approval` is:
 
 Four timestamps describe different events. Do not read any one of them as another.
 
-- `first_observed` and `last_observed` bound the **evidence window**: the earliest and latest moment the supporting evidence was observed. They say when the user expressed the preference, not when the rule became usable.
+- `first_observed` and `last_observed` bound the **evidence window**: the earliest and latest moment the supporting evidence was observed. They say when the user expressed the preference, not when the rule became usable. When none of the selected evidence carries a timestamp, both fall back to the moment the candidate was written, so a value equal to the file's `updated_at` may mean "no observation time was available" rather than "observed then".
 - `approval.approved_at` records when the rule became **eligible for compilation**. A candidate is never compiled, so a rule has no active period before this field exists.
 - `expires_at` bounds the **end of validity** and is exclusive: compilation drops a rule once `expires_at` is at or before the evaluation instant. `null` means "until superseded or forgotten", not "true forever".
 - Root `updated_at` records the last write to the file. It is file metadata; never read it as the moment a particular rule changed.
@@ -107,4 +107,4 @@ Prefer `add-candidate --supersedes OLD_ID` over `set-status superseded` when a r
 
 An approved preference can become confidently wrong when the user's circumstances change and the rule never expires. Handle that by review, not by silent decay. When a correction arrives, create a new evidence-backed record that supersedes the old one; never edit an approved rule in place, and never let elapsed time alone downgrade or remove a rule the user approved.
 
-Compilation honours `expires_at`, but no bundled command sets it: `add-candidate` always writes `null`. Until one does, express a preference the user already expects to be temporary with a `temporary` scope, which compiles only when its exact context ID is supplied.
+Compilation honours `expires_at`, but no bundled command sets it: `add-candidate` always writes `null`. The approval digest covers expiry, so an expiry added after approval invalidates the record rather than shortening it; it has to be present on the candidate the user reviews. Until a command sets it, express a preference the user already expects to be temporary with a `temporary` scope, which compiles only when its exact context ID is supplied.

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import hashlib
 import hmac
 import json
@@ -44,6 +45,11 @@ class BundleError(ValueError):
     """Raised when a bundle is unsafe or does not match its receipt."""
 
 
+def sanitize_for_message(text: str) -> str:
+    """Replace hidden characters with their code points before printing them."""
+    return DECEPTIVE_INVISIBLE.sub(lambda match: f"<U+{ord(match.group()):04X}>", text)
+
+
 def has_reparse_attribute(file_attributes: int) -> bool:
     flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     return bool(file_attributes & flag)
@@ -59,19 +65,56 @@ def is_reparse_point(path: Path) -> bool:
     return path.is_symlink() or bool(is_junction and is_junction())
 
 
-def hash_file(path: Path) -> bytes:
+def hash_and_scan_file(path: Path) -> tuple[bytes, str | None, bool]:
+    """Hash and scan one file in a single streaming pass over the same bytes.
+
+    Returns the SHA-256 digest, the first hidden character found (or None), and
+    whether the file decoded as UTF-8 text. Hashing and scanning must see the
+    same read: two passes would let a file change between the scan a reviewer
+    trusts and the digest that reviewer approves.
+    """
     digest = hashlib.sha256()
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    hidden: str | None = None
+    is_text = True
+    at_start = True
     with path.open("rb") as handle:
         while chunk := handle.read(1024 * 1024):
             digest.update(chunk)
-    return digest.digest()
+            if not is_text:
+                continue
+            try:
+                text = decoder.decode(chunk)
+            except UnicodeDecodeError:
+                is_text = False
+                continue
+            if at_start and text:
+                # A leading byte-order mark is ordinary on Windows and hides
+                # nothing at offset zero. Elsewhere in the file it is refused.
+                text = text.removeprefix("\ufeff")
+                at_start = False
+            if hidden is None:
+                found = DECEPTIVE_INVISIBLE.search(text)
+                if found:
+                    hidden = found.group()
+    if is_text:
+        try:
+            tail = decoder.decode(b"", True)
+        except UnicodeDecodeError:
+            is_text = False
+        else:
+            if hidden is None and tail:
+                found = DECEPTIVE_INVISIBLE.search(tail)
+                if found:
+                    hidden = found.group()
+    return digest.digest(), hidden, is_text
 
 
-def bundle_records(root: Path) -> list[tuple[bytes, bytes, str]]:
+def bundle_records(root: Path) -> list[tuple[bytes, bytes, str, str | None, bool]]:
     root = root.expanduser().absolute()
     if is_reparse_point(root) or not root.is_dir():
         raise BundleError(f"Bundle root must be a regular directory: {root}")
-    records: list[tuple[bytes, bytes, str]] = []
+    records: list[tuple[bytes, bytes, str, str | None, bool]] = []
     for path in root.rglob("*"):
         if is_reparse_point(path):
             raise BundleError(f"Refusing link or junction: {path.relative_to(root)}")
@@ -85,41 +128,49 @@ def bundle_records(root: Path) -> list[tuple[bytes, bytes, str]]:
             relative_bytes = relative.encode("utf-8")
         except UnicodeEncodeError as exc:
             raise BundleError(f"Path is not valid UTF-8: {relative!r}") from exc
-        records.append((relative_bytes, hash_file(path), relative))
+        content_digest, hidden, is_text = hash_and_scan_file(path)
+        records.append((relative_bytes, content_digest, relative, hidden, is_text))
     return sorted(records, key=lambda record: record[0])
 
 
-def canonical_bundle_digest(root: Path) -> tuple[str, list[str]]:
+def digest_and_scan(root: Path) -> tuple[str, list[str], dict[str, Any]]:
+    """Return the canonical digest, the file list, and a completed scan.
+
+    Raises before producing either when any file name or file content carries a
+    character the approving reviewer cannot see.
+    """
     bundle = hashlib.sha256(ALGORITHM.encode("ascii") + b"\0")
     files: list[str] = []
-    for relative_bytes, content_digest, relative in bundle_records(root):
+    text_files = 0
+    non_text_files = 0
+    for relative_bytes, content_digest, relative, hidden, is_text in bundle_records(root):
+        # A deceptive file name is as dangerous as deceptive content: the name is
+        # what the reviewer reads in the receipt, and it is covered by the digest.
+        in_name = DECEPTIVE_INVISIBLE.search(relative)
+        if in_name:
+            raise BundleError(
+                f"Invisible or bidi control character U+{ord(in_name.group()):04X} "
+                f"found in a file name: {sanitize_for_message(relative)}"
+            )
+        if hidden is not None:
+            raise BundleError(
+                f"Invisible or bidi control character U+{ord(hidden):04X} found: {relative}"
+            )
+        if is_text:
+            text_files += 1
+        else:
+            non_text_files += 1
         bundle.update(len(relative_bytes).to_bytes(8, "big"))
         bundle.update(relative_bytes)
         bundle.update(content_digest)
         files.append(relative)
-    return bundle.hexdigest(), files
+    scan = {"status": "clean", "text_files": text_files, "non_text_files": non_text_files}
+    return bundle.hexdigest(), files, scan
 
 
-def scan_invisible_characters(root: Path) -> dict[str, Any]:
-    """Refuse a bundle whose text hides characters from the approving reviewer."""
-    root = root.expanduser().absolute()
-    text_files = 0
-    non_text_files = 0
-    for _, _, relative in bundle_records(root):
-        data = (root / relative).read_bytes()
-        try:
-            decoded = data.decode("utf-8")
-        except UnicodeDecodeError:
-            non_text_files += 1
-            continue
-        hidden = DECEPTIVE_INVISIBLE.search(decoded)
-        if hidden:
-            raise BundleError(
-                f"Invisible or bidi control character "
-                f"U+{ord(hidden.group()):04X} found: {relative}"
-            )
-        text_files += 1
-    return {"status": "clean", "text_files": text_files, "non_text_files": non_text_files}
+def canonical_bundle_digest(root: Path) -> tuple[str, list[str]]:
+    digest, files, _ = digest_and_scan(root)
+    return digest, files
 
 
 def build_receipt(
@@ -173,8 +224,7 @@ def build_receipt(
         if parent == current:
             break
         current = parent
-    invisible_character_scan = scan_invisible_characters(root)
-    digest, files = canonical_bundle_digest(root)
+    digest, files, invisible_character_scan = digest_and_scan(root)
     destination_exists = destination_path.exists()
     return {
         "schema_version": "1.1",
@@ -190,13 +240,13 @@ def build_receipt(
     }
 
 
-def verify_digest(root: Path, expected: str) -> str:
+def verify_digest(root: Path, expected: str) -> tuple[str, dict[str, Any]]:
     if not DIGEST_RE.fullmatch(expected):
         raise BundleError("Expected digest must contain 64 hexadecimal characters")
-    actual, _ = canonical_bundle_digest(root)
+    actual, _, scan = digest_and_scan(root)
     if not hmac.compare_digest(actual, expected.lower()):
         raise BundleError(f"Bundle digest mismatch: expected {expected.lower()}, got {actual}")
-    return actual
+    return actual, scan
 
 
 def atomic_write_json(path: Path, data: dict[str, Any], overwrite: bool) -> None:
@@ -264,13 +314,14 @@ def main(argv: list[str] | None = None) -> int:
                 atomic_write_json(args.output.resolve(), result, args.overwrite)
                 result = {**result, "output": str(args.output)}
         else:
+            bundle_digest, scan = verify_digest(args.root, args.expected)
             result = {
                 "status": "verified",
                 "algorithm": ALGORITHM,
-                "bundle_digest": verify_digest(args.root, args.expected),
-                "invisible_character_scan": scan_invisible_characters(args.root),
+                "bundle_digest": bundle_digest,
+                "invisible_character_scan": scan,
             }
-    except (OSError, BundleError) as exc:
+    except (OSError, MemoryError, BundleError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False))

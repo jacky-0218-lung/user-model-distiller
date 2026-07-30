@@ -211,6 +211,46 @@ class ProfileLifecycleCliTests(unittest.TestCase):
             self.assertNotIn("Use concise answers.", rewound)
             self.assertNotIn("pref.concise", rewound)
 
+            # The other half of the promise: --as-of does move the expiry
+            # boundary. No command sets expires_at, so it has to be written onto
+            # the candidate before approval — the approval digest covers expiry,
+            # so editing it afterwards invalidates the record instead.
+            expiring_candidate = root / "expiring-candidate.json"
+            expiring_profile = root / "expiring.json"
+            before_view = root / "before-expiry.md"
+            after_view = root / "after-expiry.md"
+            candidate = json.loads(candidate_profile.read_text(encoding="utf-8"))
+            candidate["preferences"][0]["expires_at"] = "2026-08-01T00:00:00Z"
+            expiring_candidate.write_text(json.dumps(candidate), encoding="utf-8")
+            expiring_digest = self.run_cli(
+                ["candidate-digest", str(expiring_candidate), "pref.concise"]
+            )["digest"]
+            self.assertNotEqual(expiring_digest, digest)
+            self.run_cli(
+                [
+                    "approve", str(expiring_candidate), "pref.concise", "--authorization-id",
+                    "approval-2", "--expected-digest", expiring_digest,
+                    "--output", str(expiring_profile),
+                ]
+            )
+
+            self.run_cli(
+                [
+                    "compile", str(expiring_profile), "--output", str(before_view),
+                    "--as-of", "2026-07-31T23:59:59Z",
+                ]
+            )
+            self.assertIn("Use concise answers.", before_view.read_text(encoding="utf-8"))
+
+            # Expiry is exclusive: the rule is already gone at the instant itself.
+            self.run_cli(
+                [
+                    "compile", str(expiring_profile), "--output", str(after_view),
+                    "--as-of", "2026-08-01T00:00:00Z",
+                ]
+            )
+            self.assertNotIn("Use concise answers.", after_view.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
