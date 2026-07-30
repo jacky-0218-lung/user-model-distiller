@@ -172,6 +172,8 @@ python3 tools/check_repository.py
 python3 -m compileall -q skills tests tools
 ```
 
+各版本之間對使用者可見的行為變更記錄在 [CHANGELOG.md](CHANGELOG.md)。升級前請先確認該版是否改變既有輸出。
+
 請在 repository 之外建立可重現的 release，並在建立 tag 前驗證：
 
 ```bash
@@ -366,6 +368,8 @@ python3 -m unittest discover -s tests -v
 python3 tools/check_repository.py
 python3 -m compileall -q skills tests tools
 ```
+
+User-visible behaviour changes between releases are recorded in [CHANGELOG.md](CHANGELOG.md). Check it before upgrading, since a release may change existing output.
 
 Build a deterministic release outside the repository and verify it before tagging:
 
