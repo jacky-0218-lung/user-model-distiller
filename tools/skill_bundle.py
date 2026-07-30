@@ -21,6 +21,23 @@ ALGORITHM = "user-model-distiller-bundle-v1"
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$", re.I)
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$", re.I)
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+# A digest proves that the approved bytes did not change. It cannot prove that a
+# reviewer saw all of them, so a bundle carrying characters the reviewer's editor
+# hides but the agent still reads is refused before a receipt exists. Keep this
+# class identical to normalize_sessions.DECEPTIVE_INVISIBLE_PATTERN and write it
+# with escapes so this tool can never match its own source.
+DECEPTIVE_INVISIBLE = re.compile(
+    "["
+    "\u00ad"  # soft hyphen
+    "\u200b"  # zero-width space
+    "\u202a-\u202e"  # bidi embedding and override controls
+    "\u2060-\u2064"  # word joiner and invisible math operators
+    "\u2066-\u2069"  # bidi isolate controls
+    "\ufeff"  # zero-width no-break space / byte-order mark
+    "\ufff9-\ufffb"  # interlinear annotation controls
+    "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "]"
+)
 
 
 class BundleError(ValueError):
@@ -83,6 +100,28 @@ def canonical_bundle_digest(root: Path) -> tuple[str, list[str]]:
     return bundle.hexdigest(), files
 
 
+def scan_invisible_characters(root: Path) -> dict[str, Any]:
+    """Refuse a bundle whose text hides characters from the approving reviewer."""
+    root = root.expanduser().absolute()
+    text_files = 0
+    non_text_files = 0
+    for _, _, relative in bundle_records(root):
+        data = (root / relative).read_bytes()
+        try:
+            decoded = data.decode("utf-8")
+        except UnicodeDecodeError:
+            non_text_files += 1
+            continue
+        hidden = DECEPTIVE_INVISIBLE.search(decoded)
+        if hidden:
+            raise BundleError(
+                f"Invisible or bidi control character "
+                f"U+{ord(hidden.group()):04X} found: {relative}"
+            )
+        text_files += 1
+    return {"status": "clean", "text_files": text_files, "non_text_files": non_text_files}
+
+
 def build_receipt(
     root: Path,
     *,
@@ -134,16 +173,18 @@ def build_receipt(
         if parent == current:
             break
         current = parent
+    invisible_character_scan = scan_invisible_characters(root)
     digest, files = canonical_bundle_digest(root)
     destination_exists = destination_path.exists()
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "algorithm": ALGORITHM,
         "repository": repository,
         "origin": origin,
         "commit": commit.lower(),
         "bundle_digest": digest,
         "files": files,
+        "invisible_character_scan": invisible_character_scan,
         "destination": destination,
         "destination_exists": destination_exists,
     }
@@ -227,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "verified",
                 "algorithm": ALGORITHM,
                 "bundle_digest": verify_digest(args.root, args.expected),
+                "invisible_character_scan": scan_invisible_characters(args.root),
             }
     except (OSError, BundleError) as exc:
         print(f"error: {exc}", file=sys.stderr)

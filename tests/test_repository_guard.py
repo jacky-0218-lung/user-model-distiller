@@ -129,6 +129,11 @@ class RepositoryGuardTests(unittest.TestCase):
             privacy_guard.DECEPTIVE_INVISIBLE_RE.pattern,
             normalizer.DECEPTIVE_INVISIBLE_PATTERN.pattern,
         )
+        bundle_tool = load_module("skill_bundle", REPO_ROOT / "tools" / "skill_bundle.py")
+        self.assertEqual(
+            bundle_tool.DECEPTIVE_INVISIBLE.pattern,
+            normalizer.DECEPTIVE_INVISIBLE_PATTERN.pattern,
+        )
 
 
 if __name__ == "__main__":

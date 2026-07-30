@@ -70,6 +70,8 @@ Calculate the canonical bundle digest from the private staging directory before 
 
 The digest covers file contents, names, and layout. Any source change, including a change that preserves the same filenames, creates a different approval subject.
 
+A digest proves only that the approved bytes did not change afterwards; it cannot prove that the reviewer saw all of them. Receipt creation therefore refuses any bundle containing Unicode Tag characters, bidi override or isolate controls, zero-width spaces, or the other characters listed in `tools/skill_bundle.py`, and records the completed scan in the receipt. Orthographic joiners (U+200C, U+200D) are preserved, because they are required by Persian, Arabic, Indic scripts, and emoji sequences. Non-UTF-8 files are counted separately and excluded from the text scan.
+
 For an already-trusted local checkout, `tools/skill_bundle.py` is the audited reference implementation for generating a receipt or verifying an expected digest. It rejects links, junctions, and non-regular files and never copies the bundle. Review that tool before executing it; do not use it as a substitute for reviewing untrusted source.
 
 ```text
@@ -87,7 +89,10 @@ Replace `PYTHON` with an approved Python 3.10+ executable. On Windows this may b
    - repository and HTTPS origin;
    - full commit SHA;
    - canonical bundle digest;
-   - complete relative file list; and
+   - complete relative file list;
+   - the `invisible_character_scan` result, which asserts that every UTF-8 file in
+     the bundle was scanned and none carried characters a reviewer's editor hides
+     but an agent still reads; and
    - destination path and whether it already exists.
 4. Summarize the permissions and security boundaries, then ask the user to approve that exact receipt. A general approval of the repository, branch, or Skill name is insufficient.
 
