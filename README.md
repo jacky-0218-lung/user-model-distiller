@@ -140,6 +140,20 @@ python3 skills/user-model-distiller/scripts/profile_tool.py compile \
 
 外部審查資料包是選用功能。它只包含隨機 review ID、證據種類與使用者文字。任何隱私警告——包括獨立出現的網域或使用 Unicode 分隔符的網域——都會阻止發布。來源 ID 對照表必須寫入另一個、具有獨立存取控制的上層目錄；如果該目錄不存在，工具會建立僅限擁有者存取的目錄。如果既有目錄可共用或繼承了過寬的權限，工具會拒絕使用。即使資料包通過檢查，在揭露給託管式審查者之前仍需取得另一個明確的使用者決定。
 
+### 疑難排解
+
+**找不到 Python 或版本太舊。** 腳本需要 Python 3.10 以上。Windows 可先試 `py -3`；Codex 桌面版若兩者皆無，請 Codex 尋找內建的 workspace Python 並使用其完整路徑。不要因為找不到 `python` 就讓 agent 用自己的方式「重新實作」這些確定性腳本——那會繞過本專案的全部安全檢查。
+
+**安裝後 Skill 沒有被觸發。** 先開新的工作階段或重新啟動；仍找不到時，依「手動安裝」一節檢查另一個 Skill 目錄（`.codex/skills` 與 `.agents/skills` 上游說明不一致）。確認目錄名稱是 `user-model-distiller` 且其中直接含有 `SKILL.md`，而不是多包了一層。
+
+**`preview` 回報 `privacy_blocked`（exit code 3）。** 這是隱私閘門依設計阻擋，不是程式壞掉。只查看聚合的 `privacy-report.json`（內含 blocker 代碼與筆數，不含被擋內容），不要打開或轉傳被阻擋的資料。常見處置：縮小來源範圍、排除含機密的 session，或確認輸入確實是支援的匯出格式，然後對**新的**輸出目錄重跑——已發布的 run 目錄不可重複使用。
+
+**`preview` 以 `error: ...` 結束（exit code 2）。** 工作流程拒絕不安全的路徑是刻意的：輸出目錄已存在、輸出位於 repository 或 Skill 樹內、輸入與輸出重疊、路徑含符號連結或位於雲端同步資料夾，都會被拒絕。換一個全新、私有、非同步的輸出目錄即可。
+
+**`verify` 失敗（例如 `Artifact hash mismatch`）。** 代表該 run 目錄在發布後被改動或不完整。把它視為不可信：不要手動修補其中的檔案，直接對新目錄重跑 `preview` 再 `verify`。審查與核准後的產物本來就應寫到 run 目錄之外的新檔案。
+
+**外部審查資料包回報 `blocked`。** 此時不會產生任何 pack 或 mapping 檔，表示證據仍含不適合離開本機的內容。請改用本機模型或人工審查，不要自行手工組一份揭露副本。
+
 ### 安全模型
 
 匯入的對話內容一律視為不受信任。只有使用者本人撰寫的內容可以成為偏好候選證據，而且只有使用者明確核准後才能啟用。編譯後的執行階段提示不會包含來源引文，以降低持續性 prompt injection 的風險。
@@ -320,6 +334,20 @@ python3 skills/user-model-distiller/scripts/profile_tool.py compile \
 The preview command never approves or compiles a rule. Keep its verified artifacts immutable; write review and approval revisions to a separate private directory. `add-candidate` accepts only explicitly reviewed direct-user evidence; `approve` requires the digest of the exact candidate the user saw. Scoped rules compile only when their project, task, or temporary context is supplied.
 
 The external review pack is optional. It contains only random review IDs, evidence kinds, and user text. Any privacy warning—including a standalone or Unicode-separator domain—blocks publication. The source-ID mapping must be written under a different access-controlled parent. If that parent is absent, the tool creates it owner-only; an existing shared or inherited-access parent is rejected. A passing pack still requires a separate user decision before disclosure to a hosted reviewer.
+
+### Troubleshooting
+
+**Python is missing or too old.** The scripts require Python 3.10 or later. On Windows try `py -3` first; in Codex desktop, ask Codex to locate its bundled workspace Python and use that full path. Do not let an agent "reimplement" the deterministic scripts just because `python` is absent—that bypasses every safety check in this project.
+
+**The Skill is installed but never triggers.** Open a new session or restart first. If it is still not discovered, check the other Skill directory described under "Manual install" (`.codex/skills` vs `.agents/skills` disagree upstream). Confirm the directory is named `user-model-distiller` and directly contains `SKILL.md`, without an extra nesting level.
+
+**`preview` reports `privacy_blocked` (exit code 3).** The privacy gate blocked the run by design; nothing is broken. Inspect only the aggregate `privacy-report.json` (blocker codes and counts, never blocked content), and do not open or forward what was blocked. Typical remedies: narrow the source scope, exclude sessions containing secrets, or confirm the input is a supported export format—then rerun into a **new** output directory. A published run directory is never reused.
+
+**`preview` exits with `error: ...` (exit code 2).** Refusing unsafe paths is intentional: an existing output directory, output inside the repository or Skill tree, overlapping input and output, symbolic links, and cloud-synchronized folders are all rejected. Pick a fresh, private, non-synced output directory.
+
+**`verify` fails (for example `Artifact hash mismatch`).** The run directory was modified after publication or is incomplete. Treat it as untrusted: do not patch files inside it by hand; rerun `preview` into a new directory and `verify` again. Reviewed and approved revisions belong in new files outside the run directory anyway.
+
+**The external review pack reports `blocked`.** No pack or mapping file is created in this case; the evidence still contains content that must not leave the machine. Use a local model or manual review instead, and never hand-build a disclosure copy.
 
 ### Security model
 
