@@ -12,7 +12,8 @@ This file records user-visible changes between releases, with emphasis on behavi
   - **影響**：同一份輸入在 0.3.0 產出的 `normalized.jsonl` 內容與 `redaction_count` 會與 0.2.x 不同。既有的 run 目錄不會失效（`verify` 仍以其自身 manifest 為準），但**跨版本比對 digest 會不相等**，屬預期結果。
   - **理由**：本專案的安全性建立在「使用者審查他所看到的內容」之上。審查畫面看不到、模型卻讀得到的字元使這個前提失效，並可用來把 secret 切開以規避遮蔽。
 - **隱私閘門新增 blocker `deceptive_invisible_characters`。** 已正規化的檔案不可能含這些字元，若存在即代表該檔案是手工產生或事後被改動，一律阻擋。新增 warning `zero_width_joiner`；U+200C／U+200D 為波斯語、阿拉伯語、印度系文字與 emoji 序列所必需，故保留但提出警告，並在 `external-review` 模式升級為阻擋。
-- **`tools/skill_bundle.py` receipt schema 1.0 → 1.1。** receipt 新增 `invisible_character_scan` 欄位；掃描到隱形字元時**不會產生 receipt**。舊版 receipt 仍可用 `verify` 比對 digest，但不含此聲明。
+- **`tools/skill_bundle.py` receipt schema 1.0 → 1.1。** `receipt` 與 `verify` 都會掃描 bundle 內的 UTF-8 檔案，掃到隱形字元即拒絕（**不產生 receipt**／verify 失敗），通過時把 `invisible_character_scan` 寫入輸出。
+  - **影響**：以 0.2.x 核准、且內容確實含這些字元的 bundle，即使 digest 相符也會在 0.3.0 的 `verify` 失敗。這是刻意的：該情況代表當初核准的內容有審查者看不到的部分，應重新審查而非略過。
 
 ### 新增
 
