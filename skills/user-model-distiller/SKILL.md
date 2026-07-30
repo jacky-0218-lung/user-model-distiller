@@ -164,7 +164,7 @@ python scripts/profile_tool.py compile PRIVATE_DIR/approved-profile.json \
 
 Compilation includes global rules by default. Pass `--project-id`, `--task-id`, or `--temporary-id` only for the matching context. Sensitive rules require exact `--sensitive-id` values; there is no blanket include switch. The runtime view omits transcript quotes and source identifiers.
 
-At response time, use a compact core plus at most three to five task-relevant rules. Do not dump the whole history into context. Do not mention remembered information unless it materially helps or the user asks.
+At response time, use a compact core plus at most three to five task-relevant rules. Select them deterministically: first rules whose scope matches the current project, task, or temporary context, then global rules whose `category` matches the work at hand (for example `response_style` for writing, `coding` for code). Do not rely on semantic similarity between rule text and the request alone; a rule phrased differently from the task can still be the operative one. Do not dump the whole history into context. Do not mention remembered information unless it materially helps or the user asks.
 
 ### 9. Evaluate and maintain
 
