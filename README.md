@@ -49,7 +49,7 @@ User Model Distiller 是一個以本機處理為優先的 Codex Skill。它會�
 
 若組織需要逐檔審查、可重現 digest 與核准收據，請把下面這段指示交給 Agent：
 
-> 將 `jacky-0218-lung/user-model-distiller` 的預設分支解析一次為完整的 40 字元 commit SHA。優先用該 commit 的直接 HTTPS archive 完成一次下載，不要只為暫存而建立 Git repository；若必須使用 Git，所有 `.git` 操作必須由同一個作業系統身分完成。只將 `install.md` 與完整的 `skills/user-model-distiller` 子目錄解壓到新的私有暫存目錄。在 Windows 上，暫存 ACL 必須保留安裝流程所需的 Codex 沙箱與核准主機身分，不得假設只有一個 SID。審查暫存檔案，依照 `install.md` 計算標準 bundle digest，並顯示 Approval receipt，內容須包含 repository、commit、digest、完整檔案清單及安裝目的地。顯示 receipt 後停止。等我核准完全相同的 receipt 後，不得重新下載；只能複製同一批暫存位元組，並確認暫存與安裝後的 digest 都等於已核准的 digest。任何不一致都必須拒絕安裝。不得為了安裝 Skill 而執行下載的腳本。
+> 將 `jacky-0218-lung/user-model-distiller` 的預設分支解析一次為完整的 40 字元 commit SHA。優先用該 commit 的直接 HTTPS archive 完成一次下載，不要只為暫存而建立 Git repository；若必須使用 Git，所有 `.git` 操作必須由同一個作業系統身分完成。只將 `install.md` 與完整的 `skills/user-model-distiller` 子目錄解壓到新的私有暫存目錄。在 Windows 上，暫存 ACL 必須保留安裝流程所需的 Codex 沙箱與核准主機身分，不得假設只有一個 SID。審查暫存檔案，依照 `install.md` 計算標準 bundle digest，並顯示 Approval receipt，內容須包含 repository、commit、digest、完整檔案清單、`invisible_character_scan` 結果及安裝目的地。顯示 receipt 後停止。等我核准完全相同的 receipt 後，不得重新下載；只能複製同一批暫存位元組，並確認暫存與安裝後的 digest 都等於已核准的 digest。任何不一致都必須拒絕安裝。不得為了安裝 Skill 而執行下載的腳本。
 
 這個模式會把核准綁定到不可變的內容，適合高風險或受稽核環境；一般使用者不需要承擔這套額外流程。
 
@@ -140,6 +140,20 @@ python3 skills/user-model-distiller/scripts/profile_tool.py compile \
 
 外部審查資料包是選用功能。它只包含隨機 review ID、證據種類與使用者文字。任何隱私警告——包括獨立出現的網域或使用 Unicode 分隔符的網域——都會阻止發布。來源 ID 對照表必須寫入另一個、具有獨立存取控制的上層目錄；如果該目錄不存在，工具會建立僅限擁有者存取的目錄。如果既有目錄可共用或繼承了過寬的權限，工具會拒絕使用。即使資料包通過檢查，在揭露給託管式審查者之前仍需取得另一個明確的使用者決定。
 
+### 疑難排解
+
+**找不到 Python 或版本太舊。** 腳本需要 Python 3.10 以上。Windows 可先試 `py -3`；Codex 桌面版若兩者皆無，請 Codex 尋找內建的 workspace Python 並使用其完整路徑。不要因為找不到 `python` 就讓 agent 用自己的方式「重新實作」這些確定性腳本——那會繞過本專案的全部安全檢查。
+
+**安裝後 Skill 沒有被觸發。** 先開新的工作階段或重新啟動；仍找不到時，依「手動安裝」一節檢查另一個 Skill 目錄（`.codex/skills` 與 `.agents/skills` 上游說明不一致）。確認目錄名稱是 `user-model-distiller` 且其中直接含有 `SKILL.md`，而不是多包了一層。
+
+**`preview` 回報 `privacy_blocked`（exit code 3）。** 這是隱私閘門依設計阻擋，不是程式壞掉。只查看聚合的 `privacy-report.json`（內含 blocker 代碼與筆數，不含被擋內容），不要打開或轉傳被阻擋的資料。常見處置：縮小來源範圍、排除含機密的 session，或確認輸入確實是支援的匯出格式，然後對**新的**輸出目錄重跑——已發布的 run 目錄不可重複使用。
+
+**`preview` 以 `error: ...` 結束（exit code 2）。** 工作流程拒絕不安全的路徑是刻意的：輸出目錄已存在、輸出位於 repository 或 Skill 樹內、輸入與輸出重疊、路徑含符號連結或位於雲端同步資料夾，都會被拒絕。換一個全新、私有、非同步的輸出目錄即可。
+
+**`verify` 失敗（例如 `Artifact hash mismatch`）。** 代表該 run 目錄在發布後被改動或不完整。把它視為不可信：不要手動修補其中的檔案，直接對新目錄重跑 `preview` 再 `verify`。審查與核准後的產物本來就應寫到 run 目錄之外的新檔案。
+
+**外部審查資料包回報 `blocked`。** 此時不會產生任何 pack 或 mapping 檔，表示證據仍含不適合離開本機的內容。請改用本機模型或人工審查，不要自行手工組一份揭露副本。
+
 ### 安全模型
 
 匯入的對話內容一律視為不受信任。只有使用者本人撰寫的內容可以成為偏好候選證據，而且只有使用者明確核准後才能啟用。編譯後的執行階段提示不會包含來源引文，以降低持續性 prompt injection 的風險。
@@ -157,6 +171,8 @@ python3 -m unittest discover -s tests -v
 python3 tools/check_repository.py
 python3 -m compileall -q skills tests tools
 ```
+
+各版本之間對使用者可見的行為變更記錄在 [CHANGELOG.md](CHANGELOG.md)。升級前請先確認該版是否改變既有輸出。
 
 請在 repository 之外建立可重現的 release，並在建立 tag 前驗證：
 
@@ -230,7 +246,7 @@ The source is pinned to the full commit SHA for `v0.2.3`, so later changes to `m
 
 For environments that require per-file review, a reproducible digest, and an approval receipt, give your agent this instruction:
 
-> Resolve the default branch of `jacky-0218-lung/user-model-distiller` exactly once to a full 40-character commit SHA. Prefer one direct HTTPS archive download for that commit; do not create a Git repository only for staging. If Git is required, use the same operating-system identity for every `.git` operation. Extract only `install.md` and the complete `skills/user-model-distiller` subtree into a new private staging directory. On Windows, preserve access for both the Codex sandbox and approved host identities required by the installation; do not assume a single SID. Review every staged file, calculate the canonical bundle digest defined in `install.md`, and show me an Approval receipt containing the repository, commit, digest, complete file list, and destination. Stop after showing the receipt. After I approve that exact receipt, do not re-fetch; copy only the same staged bytes, verify that the staging and installed digests both match the approved digest, and refuse installation on any mismatch. Do not execute downloaded scripts merely to install the Skill.
+> Resolve the default branch of `jacky-0218-lung/user-model-distiller` exactly once to a full 40-character commit SHA. Prefer one direct HTTPS archive download for that commit; do not create a Git repository only for staging. If Git is required, use the same operating-system identity for every `.git` operation. Extract only `install.md` and the complete `skills/user-model-distiller` subtree into a new private staging directory. On Windows, preserve access for both the Codex sandbox and approved host identities required by the installation; do not assume a single SID. Review every staged file, calculate the canonical bundle digest defined in `install.md`, and show me an Approval receipt containing the repository, commit, digest, complete file list, `invisible_character_scan` result, and destination. Stop after showing the receipt. After I approve that exact receipt, do not re-fetch; copy only the same staged bytes, verify that the staging and installed digests both match the approved digest, and refuse installation on any mismatch. Do not execute downloaded scripts merely to install the Skill.
 
 This mode binds approval to immutable content and is intended for high-risk or audited environments. Most users do not need the additional workflow.
 
@@ -321,6 +337,20 @@ The preview command never approves or compiles a rule. Keep its verified artifac
 
 The external review pack is optional. It contains only random review IDs, evidence kinds, and user text. Any privacy warning—including a standalone or Unicode-separator domain—blocks publication. The source-ID mapping must be written under a different access-controlled parent. If that parent is absent, the tool creates it owner-only; an existing shared or inherited-access parent is rejected. A passing pack still requires a separate user decision before disclosure to a hosted reviewer.
 
+### Troubleshooting
+
+**Python is missing or too old.** The scripts require Python 3.10 or later. On Windows try `py -3` first; in Codex desktop, ask Codex to locate its bundled workspace Python and use that full path. Do not let an agent "reimplement" the deterministic scripts just because `python` is absent—that bypasses every safety check in this project.
+
+**The Skill is installed but never triggers.** Open a new session or restart first. If it is still not discovered, check the other Skill directory described under "Manual install" (`.codex/skills` vs `.agents/skills` disagree upstream). Confirm the directory is named `user-model-distiller` and directly contains `SKILL.md`, without an extra nesting level.
+
+**`preview` reports `privacy_blocked` (exit code 3).** The privacy gate blocked the run by design; nothing is broken. Inspect only the aggregate `privacy-report.json` (blocker codes and counts, never blocked content), and do not open or forward what was blocked. Typical remedies: narrow the source scope, exclude sessions containing secrets, or confirm the input is a supported export format—then rerun into a **new** output directory. A published run directory is never reused.
+
+**`preview` exits with `error: ...` (exit code 2).** Refusing unsafe paths is intentional: an existing output directory, output inside the repository or Skill tree, overlapping input and output, symbolic links, and cloud-synchronized folders are all rejected. Pick a fresh, private, non-synced output directory.
+
+**`verify` fails (for example `Artifact hash mismatch`).** The run directory was modified after publication or is incomplete. Treat it as untrusted: do not patch files inside it by hand; rerun `preview` into a new directory and `verify` again. Reviewed and approved revisions belong in new files outside the run directory anyway.
+
+**The external review pack reports `blocked`.** No pack or mapping file is created in this case; the evidence still contains content that must not leave the machine. Use a local model or manual review instead, and never hand-build a disclosure copy.
+
 ### Security model
 
 Imported transcripts are untrusted. Only user-authored evidence may become a preference candidate, and only explicit user approval may activate it. Source quotes are kept out of the compiled runtime prompt to reduce persistent prompt-injection risk.
@@ -338,6 +368,8 @@ python3 -m unittest discover -s tests -v
 python3 tools/check_repository.py
 python3 -m compileall -q skills tests tools
 ```
+
+User-visible behaviour changes between releases are recorded in [CHANGELOG.md](CHANGELOG.md). Check it before upgrading, since a release may change existing output.
 
 Build a deterministic release outside the repository and verify it before tagging:
 

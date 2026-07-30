@@ -6,6 +6,8 @@ import json
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 
@@ -661,11 +663,160 @@ class InstallIntegrityTests(unittest.TestCase):
             self.assertEqual(receipt["files"], ["SKILL.md", "scripts/profile_tool.py"])
             self.assertEqual(receipt["origin"], "https://github.com/example/user-model-distiller")
             self.assertFalse(receipt["destination_exists"])
-            bundle_tool.verify_digest(root, receipt["bundle_digest"])
+            self.assertEqual(receipt["schema_version"], "1.1")
+            self.assertEqual(
+                receipt["invisible_character_scan"],
+                {"status": "clean", "text_files": 2, "non_text_files": 0},
+            )
+            verified_digest, verified_scan = bundle_tool.verify_digest(
+                root, receipt["bundle_digest"]
+            )
+            self.assertEqual(verified_digest, receipt["bundle_digest"])
+            self.assertEqual(verified_scan, receipt["invisible_character_scan"])
 
             script.write_text("print('changed')\n", encoding="utf-8")
             with self.assertRaises(bundle_tool.BundleError):
                 bundle_tool.verify_digest(root, receipt["bundle_digest"])
+
+    def test_receipt_refuses_a_bundle_carrying_hidden_characters(self):
+        # A digest only proves the bytes did not change after approval. It cannot
+        # prove the reviewer saw them, so a hidden instruction must stop the
+        # receipt from existing at all.
+        bundle_tool = load_module("skill_bundle_hidden", REPO_ROOT / "tools" / "skill_bundle.py")
+        tag_letter = chr(0xE0041)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "SKILL.md").write_text("name: user-model-distiller\n", encoding="utf-8")
+            poisoned = root / "references" / "notes.md"
+            poisoned.parent.mkdir()
+            poisoned.write_text(f"Visible text{tag_letter}\n", encoding="utf-8")
+
+            with self.assertRaises(bundle_tool.BundleError) as caught:
+                bundle_tool.build_receipt(
+                    root,
+                    repository="example/user-model-distiller",
+                    origin="https://github.com/example/user-model-distiller",
+                    commit="a" * 40,
+                    destination=str(root / "trusted" / "user-model-distiller"),
+                )
+
+            message = str(caught.exception)
+            self.assertIn("U+E0041", message)
+            self.assertIn("references/notes.md", message)
+            # The refusal must not echo the hidden character back into a log.
+            self.assertNotIn(tag_letter, message)
+
+            with self.assertRaises(bundle_tool.BundleError):
+                bundle_tool.digest_and_scan(root)
+
+            poisoned.write_text("Visible text\n", encoding="utf-8")
+            _, _, scan = bundle_tool.digest_and_scan(root)
+            self.assertEqual(
+                scan, {"status": "clean", "text_files": 2, "non_text_files": 0}
+            )
+
+    def test_receipt_refuses_a_deceptive_file_name(self):
+        # The file list is what the reviewer actually reads in the receipt, so a
+        # name that renders as a different name is as dangerous as hidden content.
+        bundle_tool = load_module("skill_bundle_name", REPO_ROOT / "tools" / "skill_bundle.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "SKILL.md").write_text("name: user-model-distiller\n", encoding="utf-8")
+            # Renders as "notes.md" but is a different path.
+            (root / f"notes{chr(0xE0041)}.md").write_text("clean\n", encoding="utf-8")
+
+            with self.assertRaises(bundle_tool.BundleError) as caught:
+                bundle_tool.digest_and_scan(root)
+
+            message = str(caught.exception)
+            self.assertIn("U+E0041", message)
+            self.assertIn("file name", message)
+            self.assertNotIn(chr(0xE0041), message)
+
+    def test_bundle_scan_allows_orthographic_joiners_and_skips_non_text(self):
+        # U+200C and U+200D carry meaning in Persian, Arabic, Indic scripts, and
+        # emoji sequences. Refusing them would break legitimate Skills.
+        bundle_tool = load_module("skill_bundle_joiner", REPO_ROOT / "tools" / "skill_bundle.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "SKILL.md").write_text(
+                f"name{chr(0x200C)}{chr(0x200D)}: user-model-distiller\n", encoding="utf-8"
+            )
+            (root / "logo.bin").write_bytes(b"\xff\xfe\x41\x42")
+
+            _, _, scan = bundle_tool.digest_and_scan(root)
+
+        self.assertEqual(scan, {"status": "clean", "text_files": 1, "non_text_files": 1})
+
+    def test_bundle_scan_allows_a_leading_bom_but_not_an_embedded_one(self):
+        # A byte-order mark at offset zero is ordinary on Windows and hides
+        # nothing; the same character mid-file is a zero-width no-break space.
+        bundle_tool = load_module("skill_bundle_bom", REPO_ROOT / "tools" / "skill_bundle.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill = root / "SKILL.md"
+            skill.write_text("name: user-model-distiller\n", encoding="utf-8-sig")
+
+            _, _, scan = bundle_tool.digest_and_scan(root)
+            self.assertEqual(scan["status"], "clean")
+
+            skill.write_text(f"name:{chr(0xFEFF)} distiller\n", encoding="utf-8")
+            with self.assertRaises(bundle_tool.BundleError) as caught:
+                bundle_tool.digest_and_scan(root)
+
+        self.assertIn("U+FEFF", str(caught.exception))
+
+    def test_bundle_scan_spans_a_streaming_chunk_boundary(self):
+        # Hashing streams in 1 MiB chunks. A hidden character split across that
+        # boundary, or simply placed beyond it, must still be found.
+        bundle_tool = load_module("skill_bundle_chunk", REPO_ROOT / "tools" / "skill_bundle.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            filler = "a" * (1024 * 1024 - 1)
+            # A three-byte character straddling the chunk boundary, then the
+            # hidden character well past it.
+            (root / "SKILL.md").write_text(
+                f"{filler}\u4e00 tail {chr(0xE0041)}\n", encoding="utf-8"
+            )
+
+            with self.assertRaises(bundle_tool.BundleError) as caught:
+                bundle_tool.digest_and_scan(root)
+
+        self.assertIn("U+E0041", str(caught.exception))
+
+    def test_bundle_verify_cli_reports_the_scan_and_refuses_hidden_characters(self):
+        bundle_tool = load_module("skill_bundle_cli", REPO_ROOT / "tools" / "skill_bundle.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill = root / "SKILL.md"
+            skill.write_text("name: user-model-distiller\n", encoding="utf-8")
+            digest, _, _ = bundle_tool.digest_and_scan(root)
+
+            output = StringIO()
+            with redirect_stdout(output):
+                status = bundle_tool.main(["verify", str(root), "--expected", digest])
+            self.assertEqual(status, 0)
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["status"], "verified")
+            self.assertEqual(
+                payload["invisible_character_scan"],
+                {"status": "clean", "text_files": 1, "non_text_files": 0},
+            )
+
+            # Same bytes plus a hidden character: the digest no longer matches,
+            # but even a matching digest must not pass the scan.
+            skill.write_text(f"name:{chr(0xE0041)} distiller\n", encoding="utf-8")
+            poisoned_digest = hashlib.sha256(
+                bundle_tool.ALGORITHM.encode("ascii") + b"\0"
+            ).hexdigest()
+            errors = StringIO()
+            with redirect_stderr(errors):
+                status = bundle_tool.main(
+                    ["verify", str(root), "--expected", poisoned_digest]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn("U+E0041", errors.getvalue())
 
     def test_receipt_rejects_untrusted_origin_and_relative_destination(self):
         bundle_tool = load_module("skill_bundle_origin", REPO_ROOT / "tools" / "skill_bundle.py")
