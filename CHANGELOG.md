@@ -8,10 +8,11 @@ This file records user-visible changes between releases, with emphasis on behavi
 
 ### 行為變更（升級前請閱讀）
 
-- **正規化器會剝除隱形字元。** `normalize_sessions.py`（內部版本 0.4.0）在遮蔽之前移除 Unicode Tag 區塊、bidi 覆寫與隔離控制、零寬空白、BOM、interlinear annotation 控制、soft hyphen，以及 tab／newline 以外的 C0/C1 控制字元，並把 `\r\n`／`\r` 正規化為 `\n`。移除數量計入既有的 `redaction_count`，不新增欄位。
+- **正規化器會剝除隱形字元。** `normalize_sessions.py`（內部版本 0.4.0）在遮蔽之前移除 Unicode Tag 區塊、variation selector supplement 區塊（U+E0100–U+E01EF，見下）、bidi 覆寫與隔離控制、零寬空白、BOM、interlinear annotation 控制、soft hyphen，以及 tab／newline 以外的 C0/C1 控制字元，並把 `\r\n`／`\r` 正規化為 `\n`。移除數量計入既有的 `redaction_count`，不新增欄位。
   - **影響**：同一份輸入在 0.3.0 產出的 `normalized.jsonl` 內容與 `redaction_count` 會與 0.2.x 不同。既有的 run 目錄不會失效（`verify` 仍以其自身 manifest 為準），但**跨版本比對 digest 會不相等**，屬預期結果。
   - **理由**：本專案的安全性建立在「使用者審查他所看到的內容」之上。審查畫面看不到、模型卻讀得到的字元使這個前提失效，並可用來把 secret 切開以規避遮蔽。
 - **隱私閘門新增 blocker `deceptive_invisible_characters`。** 已正規化的檔案不可能含這些字元，若存在即代表該檔案是手工產生或事後被改動，一律阻擋。新增 warning `zero_width_joiner`；U+200C／U+200D 為波斯語、阿拉伯語、印度系文字與 emoji 序列所必需，故保留但提出警告，並在 `external-review` 模式升級為阻擋。
+- **拒絕類別擴大：variation selector supplement（U+E0100–U+E01EF）。** 此區塊是已被公開規則庫記錄的 ASCII smuggling 通道（每個位元組可藏為 U+E0100+byte，渲染畫面完全看不到，tokenizer 卻讀得到）。移除它只影響字形選擇、不影響文字內容，故正規化器直接剝除並計入 `redaction_count`，隱私閘門、repo 守門與 `skill_bundle.py` 一律視為拒絕字元。標準 variation selector（U+FE00–U+FE0F）為 emoji 與 CJK 相容序列所必需，予以保留；但**連續兩個以上**的標準 selector 不會出現在正當文字中（每個 selector 可攜帶 4 位元資料），隱私閘門新增 warning `variation_selector_run`，於 `external-review` 模式升級為阻擋。
 - **`tools/skill_bundle.py` receipt schema 1.0 → 1.1。** `receipt` 與 `verify` 都會掃描 bundle 內的**檔名與 UTF-8 檔案內容**，掃到隱形字元即拒絕（**不產生 receipt**／verify 失敗），通過時把 `invisible_character_scan` 寫入輸出。雜湊與掃描在同一次串流讀取中完成，因此掃描結果必定描述 digest 所涵蓋的同一批位元組。
   - **影響**：以 0.2.x 核准、且內容確實含這些字元的 bundle，即使 digest 相符也會在 0.3.0 的 `verify` 失敗。這是刻意的：該情況代表當初核准的內容有審查者看不到的部分，應重新審查而非略過。
   - 檔案開頭的 BOM 屬正常情形（Windows 常見）予以放行，同一字元出現在檔案其他位置仍會被拒絕。
@@ -31,7 +32,7 @@ This file records user-visible changes between releases, with emphasis on behavi
 ### 已知限制
 
 - 編譯支援 `expires_at`，但目前沒有任何指令會設定它；核准 digest 涵蓋 expiry，因此核准後才加入到期時間會使該筆記錄失效。需要有效期限的偏好請改用 `temporary` scope。
-- 隱形字元的字元類別為本專案明確拒絕的集合，並非所有可能隱形字元的完整清單（例如 variation selector 不在其中）。逐檔審查暫存來源仍然必要。
+- 隱形字元的字元類別為本專案明確拒絕的集合，並非所有可能隱形字元的完整清單。variation selector supplement 已納入拒絕類別；標準 variation selector（U+FE00–U+FE0F）因 emoji 與 CJK 相容序列的正當用途而保留，單一 selector 仍可攜帶少量隱藏資料（連續出現時會觸發 `variation_selector_run` 警告）。逐檔審查暫存來源仍然必要。
 
 ## 0.2.3
 

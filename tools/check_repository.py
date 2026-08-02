@@ -34,6 +34,7 @@ DECEPTIVE_INVISIBLE = re.compile(
     "\ufeff"  # zero-width no-break space / byte-order mark
     "\ufff9-\ufffb"  # interlinear annotation controls
     "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "\U000e0100-\U000e01ef"  # variation selector supplement (smuggling channel)
     "]"
 )
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s]+)\s*$", re.M)

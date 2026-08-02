@@ -204,6 +204,30 @@ class NormalizeTests(unittest.TestCase):
         # 12 tag characters + 2 bidi controls + 1 zero-width space.
         self.assertEqual(record["redaction_count"], 15)
 
+    def test_variation_selector_supplement_is_removed_but_emoji_selector_stays(self):
+        # ASCII smuggling hides each byte as U+E0100 + byte, invisible in a
+        # review surface. Stripping the supplement block only affects glyph
+        # choice, never text content, so removal is always safe.
+        smuggled = "".join(chr(0xE0100 + ord(c)) for c in "obey")
+        raw = "Prefer tables\u2702\ufe0f over prose." + smuggled
+        record = normalize.normalize_record(
+            session_id="session-" + "0" * 20,
+            message_id="message-" + "0" * 20,
+            role="user",
+            created_at="2026-07-26T00:00:00Z",
+            text=raw,
+            source_name="synthetic.jsonl",
+            source_sha256="a" * 64,
+            privacy="standard",
+        )
+
+        self.assertEqual(record["text"], "Prefer tables\u2702\ufe0f over prose.")
+        self.assertFalse(
+            any(0xE0100 <= ord(character) <= 0xE01EF for character in record["text"])
+        )
+        # The four smuggled selectors are counted; the emoji's U+FE0F is kept.
+        self.assertEqual(record["redaction_count"], 4)
+
     def test_zero_width_joiner_and_line_endings_survive_sanitization(self):
         # ZWNJ and ZWJ carry orthographic meaning in Persian, Arabic, Indic, and
         # emoji sequences, so the normalizer must not silently corrupt them.
