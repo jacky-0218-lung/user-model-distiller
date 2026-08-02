@@ -197,6 +197,48 @@ class PrivacyGuardTests(unittest.TestCase):
         self.assertEqual(joiner_local["status"], "pass")
         self.assertEqual(joiner_external["decision"], "block")
 
+    def test_variation_selector_supplement_blocks(self):
+        # ASCII smuggling maps each byte to U+E0100 + byte, so printable text
+        # hides inside U+E0120-U+E017E. The bundled normalizer strips the whole
+        # block; its presence in a "normalized" file means tampering.
+        hidden = "".join(chr(0xE0100 + ord(c)) for c in "exfiltrate")
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory), [normalized_record(text="Be concise." + hidden)]
+            )
+            local = guard.scan_path(path, "local")
+
+        self.assertIn("deceptive_invisible_characters", finding_codes(local, "blockers"))
+        self.assertEqual(local["decision"], "block")
+
+    def test_variation_selector_runs_warn_but_single_emoji_selector_passes(self):
+        # One U+FE0F after a base character is ordinary emoji presentation.
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory), [normalized_record(text="Ship it \u2702\ufe0f today.")]
+            )
+            emoji_report = guard.scan_path(path, "local")
+
+        self.assertNotIn(
+            "variation_selector_run", finding_codes(emoji_report, "warnings")
+        )
+        self.assertEqual(emoji_report["decision"], "pass")
+
+        # Two or more consecutive standard selectors never occur in legitimate
+        # text; each selector can carry four bits, so runs are a data channel.
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_jsonl(
+                Path(directory),
+                [normalized_record(text="Looks empty \ufe00\ufe0f here.")],
+            )
+            run_local = guard.scan_path(path, "local")
+            run_external = guard.scan_path(path, "external-review")
+
+        self.assertIn("variation_selector_run", finding_codes(run_local, "warnings"))
+        self.assertEqual(run_local["blocker_count"], 0)
+        self.assertEqual(run_local["decision"], "warn")
+        self.assertEqual(run_external["decision"], "block")
+
     def test_report_never_echoes_the_hidden_characters(self):
         hidden = "".join(chr(0xE0000 + ord(c) - 0x20) for c in "leak")
         with tempfile.TemporaryDirectory() as directory:

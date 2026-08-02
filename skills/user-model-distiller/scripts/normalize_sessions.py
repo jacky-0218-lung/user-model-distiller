@@ -88,6 +88,12 @@ HIGH_PRIVACY_PATTERNS = (
 # transcript, so remove them before any cue scoring or review rendering.
 # U+200C and U+200D are deliberately excluded: Persian, Arabic, Indic, and
 # emoji sequences need them, and privacy_guard.py warns about them instead.
+# The variation selector supplement block is removed: it is a documented
+# ASCII-smuggling channel (each byte hides as U+E0100 + byte) and stripping
+# it only affects glyph choice, never text content. Standard variation
+# selectors (U+FE00-U+FE0F) are kept because emoji and CJK compatibility
+# sequences need them; privacy_guard.py warns when they appear in runs,
+# which legitimate text never produces.
 DECEPTIVE_INVISIBLE_PATTERN = re.compile(
     "["
     "\u00ad"  # soft hyphen
@@ -98,6 +104,7 @@ DECEPTIVE_INVISIBLE_PATTERN = re.compile(
     "\ufeff"  # zero-width no-break space / byte-order mark
     "\ufff9-\ufffb"  # interlinear annotation controls
     "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "\U000e0100-\U000e01ef"  # variation selector supplement (smuggling channel)
     "]"
 )
 

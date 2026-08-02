@@ -91,6 +91,7 @@ DECEPTIVE_INVISIBLE_RE = re.compile(
     "\ufeff"  # zero-width no-break space / byte-order mark
     "\ufff9-\ufffb"  # interlinear annotation controls
     "\U000e0000-\U000e007f"  # Unicode Tag characters
+    "\U000e0100-\U000e01ef"  # variation selector supplement (smuggling channel)
     "]"
 )
 
@@ -98,6 +99,13 @@ DECEPTIVE_INVISIBLE_RE = re.compile(
 # need them, but they can still split a token past a pattern match. Warn so a
 # reviewer can look before approving or disclosing the text.
 ZERO_WIDTH_JOINER_RE = re.compile("[\u200c\u200d]")
+
+# A single standard variation selector directly after a base character is
+# ordinary emoji or CJK compatibility usage, so the normalizer keeps the
+# U+FE00-U+FE0F block. Runs of two or more never occur in legitimate text and
+# are a documented data-smuggling channel (each selector encodes four bits),
+# so warn and let the reviewer look before approving or disclosing the text.
+VARIATION_SELECTOR_RUN_RE = re.compile("[\ufe00-\ufe0f]{2,}")
 
 SECRET_PATTERNS = (
     re.compile(
@@ -275,6 +283,8 @@ def _scan_warnings(text: str) -> set[str]:
         findings.add("project_client_contract_confidential_context")
     if ZERO_WIDTH_JOINER_RE.search(text):
         findings.add("zero_width_joiner")
+    if VARIATION_SELECTOR_RUN_RE.search(text):
+        findings.add("variation_selector_run")
     return findings
 
 
