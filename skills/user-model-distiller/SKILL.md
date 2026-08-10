@@ -109,7 +109,7 @@ python scripts/profile_tool.py add-candidate PRIVATE_DIR/profile.json PRIVATE_DI
   --output PRIVATE_DIR/candidate-profile.json
 ```
 
-The command always creates `status: candidate`; it cannot approve a preference. Pass `--supersedes OLD_ID` when a replacement should retire an approved rule. Approval changes the replacement to approved and the linked old rule to superseded in one validated profile write. Do not hand-edit approved records.
+The command always creates `status: candidate`; it cannot approve a preference. Pass `--supersedes OLD_ID` when a replacement should retire an approved rule. Approval changes the replacement to approved and the linked old rule to superseded in one validated profile write. Do not hand-edit approved records. For a rule the user wants only for a bounded period, pass `--expires-at TIMESTAMP` here at the candidate stage — the approval digest covers expiry, so it must be part of what the user reviews; compiled views drop the rule once the expiry passes.
 
 Write each rule as a concise, executable instruction. Record its scope, confidence, observation dates, and source message identifiers. Do not copy long transcript passages into the profile.
 

@@ -4,7 +4,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
@@ -181,7 +181,8 @@ class ProfileLifecycleCliTests(unittest.TestCase):
                 ]
             )
 
-            # add-candidate never sets an expiry, which is what the reference says.
+            # Without --expires-at, add-candidate writes null, which is what
+            # the reference says.
             approved = json.loads(approved_profile.read_text(encoding="utf-8"))
             self.assertIsNone(approved["preferences"][0]["expires_at"])
 
@@ -212,16 +213,22 @@ class ProfileLifecycleCliTests(unittest.TestCase):
             self.assertNotIn("pref.concise", rewound)
 
             # The other half of the promise: --as-of does move the expiry
-            # boundary. No command sets expires_at, so it has to be written onto
-            # the candidate before approval — the approval digest covers expiry,
-            # so editing it afterwards invalidates the record instead.
+            # boundary. Expiry is set at the candidate stage via
+            # add-candidate --expires-at — the approval digest covers expiry,
+            # so editing it after approval invalidates the record instead.
             expiring_candidate = root / "expiring-candidate.json"
             expiring_profile = root / "expiring.json"
             before_view = root / "before-expiry.md"
             after_view = root / "after-expiry.md"
-            candidate = json.loads(candidate_profile.read_text(encoding="utf-8"))
-            candidate["preferences"][0]["expires_at"] = "2026-08-01T00:00:00Z"
-            expiring_candidate.write_text(json.dumps(candidate), encoding="utf-8")
+            self.run_cli(
+                [
+                    "add-candidate", str(empty_profile), str(reviewed), "--id", "pref.concise",
+                    "--rule", "Use concise answers.", "--category", "response_style",
+                    "--confidence", "1.0", "--message-id", "message-fedcba9876543210abcd",
+                    "--expires-at", "2100-01-01T00:00:00Z",
+                    "--output", str(expiring_candidate),
+                ]
+            )
             expiring_digest = self.run_cli(
                 ["candidate-digest", str(expiring_candidate), "pref.concise"]
             )["digest"]
@@ -237,7 +244,7 @@ class ProfileLifecycleCliTests(unittest.TestCase):
             self.run_cli(
                 [
                     "compile", str(expiring_profile), "--output", str(before_view),
-                    "--as-of", "2026-07-31T23:59:59Z",
+                    "--as-of", "2099-12-31T23:59:59Z",
                 ]
             )
             self.assertIn("Use concise answers.", before_view.read_text(encoding="utf-8"))
@@ -246,10 +253,27 @@ class ProfileLifecycleCliTests(unittest.TestCase):
             self.run_cli(
                 [
                     "compile", str(expiring_profile), "--output", str(after_view),
-                    "--as-of", "2026-08-01T00:00:00Z",
+                    "--as-of", "2100-01-01T00:00:00Z",
                 ]
             )
             self.assertNotIn("Use concise answers.", after_view.read_text(encoding="utf-8"))
+
+            # An already-expired candidate is refused outright: approving it
+            # would spend a digest-bound review on a rule that can never compile.
+            dead_candidate = root / "dead-candidate.json"
+            output = StringIO()
+            with redirect_stdout(output), redirect_stderr(StringIO()):
+                status = tool.main(
+                    [
+                        "add-candidate", str(empty_profile), str(reviewed), "--id", "pref.concise",
+                        "--rule", "Use concise answers.", "--category", "response_style",
+                        "--confidence", "1.0", "--message-id", "message-fedcba9876543210abcd",
+                        "--expires-at", "2020-01-01T00:00:00Z",
+                        "--output", str(dead_candidate),
+                    ]
+                )
+            self.assertEqual(status, 2)
+            self.assertFalse(dead_candidate.exists())
 
 
 if __name__ == "__main__":
