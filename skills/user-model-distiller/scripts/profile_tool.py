@@ -128,12 +128,24 @@ def add_candidate_from_evidence(
     sensitivity: str,
     message_ids: list[str],
     supersedes: list[str] | None = None,
+    expires_at: str | None = None,
 ) -> dict[str, Any]:
     existing_errors = validate_profile(profile)
     if existing_errors:
         raise ProfileError("Profile validation failed:\n- " + "\n- ".join(existing_errors))
     if not message_ids:
         raise ProfileError("Select at least one evidence message ID")
+
+    normalized_expiry: str | None = None
+    if expires_at is not None:
+        parsed_expiry = parse_expiry(expires_at)
+        if parsed_expiry is None:
+            raise ProfileError("Expiry must be a valid ISO-8601 timestamp")
+        if parsed_expiry <= datetime.now(tz=timezone.utc):
+            raise ProfileError(
+                "Expiry must be in the future; an already-expired candidate would never compile"
+            )
+        normalized_expiry = parsed_expiry.isoformat().replace("+00:00", "Z")
 
     selected: list[dict[str, Any]] = []
     for message_id in dict.fromkeys(message_ids):
@@ -191,7 +203,7 @@ def add_candidate_from_evidence(
         "last_observed": max(observed) if observed else timestamp,
         "evidence": evidence_refs,
         "supersedes": supersedes,
-        "expires_at": None,
+        "expires_at": normalized_expiry,
         "approval": None,
     }
     updated = deepcopy(profile)
@@ -629,6 +641,10 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_parser.add_argument("--sensitivity", default="normal", choices=sorted(ALLOWED_SENSITIVITY))
     candidate_parser.add_argument("--message-id", required=True, action="append", dest="message_ids")
     candidate_parser.add_argument("--supersedes", action="append", default=[])
+    candidate_parser.add_argument(
+        "--expires-at", dest="expires_at",
+        help="Optional ISO-8601 end of validity; stored normalized to UTC and covered by the approval digest",
+    )
     candidate_parser.add_argument("--output", type=Path)
     candidate_parser.add_argument("--in-place", action="store_true")
     candidate_parser.add_argument("--overwrite", action="store_true")
@@ -724,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
                 sensitivity=args.sensitivity,
                 message_ids=args.message_ids,
                 supersedes=args.supersedes,
+                expires_at=args.expires_at,
             )
             destination, replacing = output_for_mutation(
                 source, args.output.resolve() if args.output else None, args.in_place
