@@ -550,6 +550,59 @@ class ProfileTests(unittest.TestCase):
         self.assertIsNone(updated["preferences"][0]["approval"])
         self.assertEqual(updated["preferences"][0]["evidence"][0]["kind"], "correction")
         self.assertEqual(updated["preferences"][0]["first_observed"], "2026-07-19T00:00:00Z")
+        self.assertIsNone(updated["preferences"][0]["expires_at"])
+
+    def test_add_candidate_expiry_is_normalized_covered_by_digest_and_must_be_future(self):
+        profile = profile_tool.empty_profile()
+        evidence_rows = [{
+            "schema_version": "1.0",
+            "session_id": "session-abc",
+            "message_id": "message-123",
+            "created_at": "2026-07-19T00:00:00Z",
+            "kinds": ["explicit_preference"],
+            "review_status": "accepted",
+            "provenance": {"role": "user", "direct": True, "suppressed_envelopes": []},
+            "truncated": False,
+        }]
+        base_kwargs = dict(
+            identifier="pref.sprint",
+            rule="Use sprint shorthand in summaries.",
+            category="response_style",
+            scope_type="global",
+            scope_value=None,
+            confidence=0.9,
+            sensitivity="normal",
+            message_ids=["message-123"],
+        )
+
+        # A non-UTC spelling is stored normalized to UTC so the approval digest
+        # does not depend on how the input wrote its timezone.
+        updated = profile_tool.add_candidate_from_evidence(
+            profile, evidence_rows, expires_at="2100-01-01T09:00:00+09:00", **base_kwargs
+        )
+        self.assertEqual(profile_tool.validate_profile(updated), [])
+        item = updated["preferences"][0]
+        self.assertEqual(item["expires_at"], "2100-01-01T00:00:00Z")
+
+        # Expiry is part of the digest the user approves.
+        without_expiry = profile_tool.add_candidate_from_evidence(
+            profile, evidence_rows, **base_kwargs
+        )
+        self.assertNotEqual(
+            profile_tool.candidate_digest(item),
+            profile_tool.candidate_digest(without_expiry["preferences"][0]),
+        )
+
+        # An unparseable or already-expired timestamp is refused at the
+        # candidate stage: approving a dead candidate would waste a review.
+        with self.assertRaises(profile_tool.ProfileError):
+            profile_tool.add_candidate_from_evidence(
+                profile, evidence_rows, expires_at="not-a-timestamp", **base_kwargs
+            )
+        with self.assertRaises(profile_tool.ProfileError):
+            profile_tool.add_candidate_from_evidence(
+                profile, evidence_rows, expires_at="2020-01-01T00:00:00Z", **base_kwargs
+            )
 
     def test_unreviewed_evidence_cannot_create_candidate(self):
         profile = profile_tool.empty_profile()
