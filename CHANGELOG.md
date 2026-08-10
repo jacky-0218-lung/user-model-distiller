@@ -22,6 +22,7 @@ This file records user-visible changes between releases, with emphasis on behavi
 - CI 守門（`tools/check_repository.py`）阻擋追蹤檔案中的隱形與 bidi 控制字元，避免本 repo 自身把隱形指令發佈給安裝者。
 - `references/profile-schema.md` 新增「Temporal semantics」一節，明確定義四個時間欄位、`--as-of` 的作用範圍與限制，以及如何由 supersedes 鏈還原某時點適用的規則。
 - README 新增中英雙語「疑難排解」段落。
+- **`add-candidate` 新增 `--expires-at` 旗標**，補上「編譯支援 `expires_at` 但沒有指令能設定它」的缺口。到期時間必須在候選階段設定，因為核准 digest 涵蓋 expiry——使用者核准的到期時間就是生效的到期時間，核准後再改會使記錄失效而非縮短效期。指令會把值正規化為 UTC（`Z` 結尾）再儲存，使 digest 不受輸入時區寫法影響，並拒絕已過期的時間戳（該候選永遠不會被編譯，核准它只是浪費一次審查）。時間界定的規則用 `--expires-at`，情境界定的規則用 `temporary` scope，兩者可並用。
 
 ### 變更
 
@@ -31,7 +32,6 @@ This file records user-visible changes between releases, with emphasis on behavi
 
 ### 已知限制
 
-- 編譯支援 `expires_at`，但目前沒有任何指令會設定它；核准 digest 涵蓋 expiry，因此核准後才加入到期時間會使該筆記錄失效。需要有效期限的偏好請改用 `temporary` scope。
 - 隱形字元的字元類別為本專案明確拒絕的集合，並非所有可能隱形字元的完整清單。variation selector supplement 已納入拒絕類別；標準 variation selector（U+FE00–U+FE0F）因 emoji 與 CJK 相容序列的正當用途而保留，單一 selector 仍可攜帶少量隱藏資料（連續出現時會觸發 `variation_selector_run` 警告）。逐檔審查暫存來源仍然必要。
 
 ## 0.2.3
