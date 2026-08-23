@@ -159,8 +159,10 @@ Compile only approved, non-expired, non-sensitive rules:
 
 ```bash
 python scripts/profile_tool.py compile PRIVATE_DIR/approved-profile.json \
-  --output PRIVATE_DIR/USER_MODEL.md --as-of 2026-07-20T00:00:00Z
+  --output PRIVATE_DIR/USER_MODEL.md
 ```
+
+Expiry is evaluated against the current time. Pass `--as-of TIMESTAMP` only to preview an expiry boundary; it affects expiry alone and does not reconstruct historical status, and a runtime view compiled with a past `--as-of` can include rules that have since expired. See `references/profile-schema.md` for the temporal semantics.
 
 Compilation includes global rules by default. Pass `--project-id`, `--task-id`, or `--temporary-id` only for the matching context. Sensitive rules require exact `--sensitive-id` values; there is no blanket include switch. The runtime view omits transcript quotes and source identifiers.
 

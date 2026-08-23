@@ -103,6 +103,12 @@ Prefer `add-candidate --supersedes OLD_ID` over `set-status superseded` when a r
 
 `compile --as-of T` evaluates **expiry only** against `T`. It does not reconstruct historical status: a record that is superseded or rejected today stays out of the compiled view even when `T` precedes that change. Use it to preview an expiry boundary, not as an audit tool. Read the profile itself for history.
 
+This limit is deliberate, not an unfinished feature. A compiled "view at T" would present itself as complete while being systematically incomplete: `forget` removes records without trace (removability is a guarantee, not a gap), and a rule retired with `set-status superseded` has no dateable replacement approval, so neither event can be placed on a timeline. A reconstruction that silently omits both would invite exactly the audit use the previous paragraph rules out. The supersession-chain walk above is the supported way to answer historical questions, and it inherits the same caveats openly.
+
+### Why there is no separate audit log
+
+`profile.json` is the audit record. Every active rule already carries its provenance (evidence references), its exact approved subject (digest), and its approval time; nothing about an active rule needs a second ledger. An append-only change log, by contrast, would outlive `forget`: even a content-free entry ("record X existed and was removed") leaks through descriptive IDs, and a log that must be edited to honor removal is no longer append-only. Between an immutable history and removable memory, this project chooses removable memory. Users who want tamper-evident history of their own profile can keep the file under their own version control; that history is then theirs to keep or destroy, which is the point.
+
 ### Staleness
 
 An approved preference can become confidently wrong when the user's circumstances change and the rule never expires. Handle that by review, not by silent decay. When a correction arrives, create a new evidence-backed record that supersedes the old one; never edit an approved rule in place, and never let elapsed time alone downgrade or remove a rule the user approved.
