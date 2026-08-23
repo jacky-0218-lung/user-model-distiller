@@ -688,7 +688,11 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--project-id")
     compile_parser.add_argument("--task-id")
     compile_parser.add_argument("--temporary-id")
-    compile_parser.add_argument("--as-of")
+    compile_parser.add_argument(
+        "--as-of",
+        help="Evaluate expires_at against this ISO-8601 instant instead of now; "
+        "affects expiry only and does not reconstruct historical status",
+    )
     compile_parser.add_argument("--limit", type=int, default=40)
     compile_parser.add_argument("--overwrite", action="store_true")
     return parser
