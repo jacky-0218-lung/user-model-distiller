@@ -27,6 +27,7 @@ This file records user-visible changes between releases, with emphasis on behavi
 ### 變更
 
 - **`--as-of` 定位為僅供預覽到期邊界，維持現狀並記錄設計理由。** 評估後決定不把 `--as-of` 擴充為歷史重建，也不引入 append-only 稽核紀錄：`forget` 依保證不留痕跡、`set-status superseded` 沒有可定年的替代核准，任何「時點重建」都會系統性不完整卻看似完整；而稽核紀錄會在 `forget` 之後留下殘跡（描述性 ID 本身就會洩漏內容），與可移除性衝突。理由全文見 `references/profile-schema.md`。同時：`compile --as-of` 補上 CLI help 文字；`SKILL.md` 第 8 節的編譯範例移除硬編的過去時間戳——照抄含過去 `--as-of` 的指令會把已到期的規則編回執行階段內容。
+- **全部腳本的 CLI 參數補齊 `--help` 說明文字。** `profile_tool.py`、`normalize_sessions.py`、`collect_evidence.py`、`distill_workflow.py`、`prepare_review_pack.py`、`evaluate_detector.py`、`memory_control.py` 的每個位置參數與選項現在都有一行說明（預設值、可重複與否、互斥關係如 `--in-place` vs `--output`),使用者不必翻原始碼或文件即可從 `--help` 理解各旗標語意。純說明文字,無任何行為變更。
 - `SKILL.md` 第 8 節補上確定性的規則挑選指引（先 scope、後 category，不只依語意相似度）。
 - README 補充 Skill 安裝目錄上游不一致（`.codex/skills` 與 `.agents/skills`）時的排除說明。
 - CI 相依：`actions/checkout` 4.3.1 → 7.0.1、`github/codeql-action` 4.37.1 → 4.37.3（init 與 analyze 一併升級以維持版本一致）。
