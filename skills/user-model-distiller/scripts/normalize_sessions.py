@@ -624,10 +624,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="Authorized ZIP, JSON, JSONL, or directory")
     parser.add_argument("--output", type=Path, required=True, help="Private normalized JSONL path")
-    parser.add_argument("--privacy", choices=("standard", "high"), default="high")
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--max-member-mb", type=int, default=128)
-    parser.add_argument("--max-total-mb", type=int, default=256)
+    parser.add_argument(
+        "--privacy",
+        choices=("standard", "high"),
+        default="high",
+        help="Redaction level for normalized output (default: high)",
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
+    parser.add_argument(
+        "--max-member-mb",
+        type=int,
+        default=128,
+        help="Reject archive members larger than this many megabytes (default: 128)",
+    )
+    parser.add_argument(
+        "--max-total-mb",
+        type=int,
+        default=256,
+        help="Reject inputs whose total decompressed size exceeds this many megabytes (default: 256)",
+    )
     return parser
 
 

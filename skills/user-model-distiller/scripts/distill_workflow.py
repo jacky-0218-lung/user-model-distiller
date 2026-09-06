@@ -532,13 +532,26 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     preview = subparsers.add_parser("preview", help="Create a private review preview")
-    preview.add_argument("input", type=Path)
-    preview.add_argument("--output-dir", required=True, type=Path)
-    preview.add_argument("--authorization-id", required=True)
-    preview.add_argument("--privacy", choices=("high", "standard"), default="high")
+    preview.add_argument(
+        "input", type=Path, help="Authorized ZIP, JSON, JSONL, or session directory"
+    )
+    preview.add_argument(
+        "--output-dir", required=True, type=Path, help="Private directory for the preview run"
+    )
+    preview.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this run",
+    )
+    preview.add_argument(
+        "--privacy",
+        choices=("high", "standard"),
+        default="high",
+        help="Redaction level for normalized output (default: high)",
+    )
 
     verify = subparsers.add_parser("verify", help="Verify a published preview")
-    verify.add_argument("run_dir", type=Path)
+    verify.add_argument("run_dir", type=Path, help="Published preview run directory to verify")
     return parser
 
 

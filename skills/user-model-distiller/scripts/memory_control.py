@@ -333,22 +333,55 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     plan_install = subparsers.add_parser("plan-install", help="Create an exact install receipt")
-    plan_install.add_argument("--runtime-view", required=True, type=Path)
-    plan_install.add_argument("--agents-file", type=Path)
-    plan_install.add_argument("--authorization-id", required=True)
-    plan_install.add_argument("--output", required=True, type=Path)
+    plan_install.add_argument(
+        "--runtime-view",
+        required=True,
+        type=Path,
+        help="Compiled runtime view to install between the managed markers",
+    )
+    plan_install.add_argument(
+        "--agents-file",
+        type=Path,
+        help="Global AGENTS.md path (default: ~/.codex/AGENTS.md)",
+    )
+    plan_install.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this plan",
+    )
+    plan_install.add_argument(
+        "--output", required=True, type=Path, help="Path for the receipt JSON"
+    )
 
     plan_remove = subparsers.add_parser("plan-remove", help="Create an exact removal receipt")
-    plan_remove.add_argument("--agents-file", type=Path)
-    plan_remove.add_argument("--authorization-id", required=True)
-    plan_remove.add_argument("--output", required=True, type=Path)
+    plan_remove.add_argument(
+        "--agents-file",
+        type=Path,
+        help="Global AGENTS.md path (default: ~/.codex/AGENTS.md)",
+    )
+    plan_remove.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this plan",
+    )
+    plan_remove.add_argument(
+        "--output", required=True, type=Path, help="Path for the receipt JSON"
+    )
 
     apply_parser = subparsers.add_parser("apply", help="Apply an approved exact receipt")
-    apply_parser.add_argument("plan", type=Path)
-    apply_parser.add_argument("--expected-digest", required=True)
+    apply_parser.add_argument("plan", type=Path, help="Receipt JSON created by a plan command")
+    apply_parser.add_argument(
+        "--expected-digest",
+        required=True,
+        help="Digest printed with the plan; apply fails if the plan or target changed since",
+    )
 
     status_parser = subparsers.add_parser("status", help="Inspect bridge state without writing")
-    status_parser.add_argument("--agents-file", type=Path)
+    status_parser.add_argument(
+        "--agents-file",
+        type=Path,
+        help="Global AGENTS.md path (default: ~/.codex/AGENTS.md)",
+    )
     return parser
 
 
