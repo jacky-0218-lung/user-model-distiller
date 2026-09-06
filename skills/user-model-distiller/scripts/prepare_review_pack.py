@@ -969,13 +969,26 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare", help="Prepare a new external review pack")
-    prepare.add_argument("input", type=Path)
-    prepare.add_argument("--output-dir", required=True, type=Path)
-    prepare.add_argument("--mapping-output", required=True, type=Path)
-    prepare.add_argument("--authorization-id", required=True)
+    prepare.add_argument(
+        "input", type=Path, help="Evidence queue JSON from collect_evidence.py"
+    )
+    prepare.add_argument(
+        "--output-dir", required=True, type=Path, help="Private directory for the review pack"
+    )
+    prepare.add_argument(
+        "--mapping-output",
+        required=True,
+        type=Path,
+        help="Private path for the identifier mapping; keep it local and never share it",
+    )
+    prepare.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this pack",
+    )
 
     verify = subparsers.add_parser("verify", help="Verify a published review pack")
-    verify.add_argument("run_dir", type=Path)
+    verify.add_argument("run_dir", type=Path, help="Published review pack directory to verify")
     return parser
 
 
