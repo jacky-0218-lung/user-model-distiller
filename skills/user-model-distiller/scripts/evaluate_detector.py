@@ -578,17 +578,34 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    score = subparsers.add_parser("score", help="score detector JSONL against gold JSONL")
-    score.add_argument("gold", type=Path)
-    score.add_argument("detector", type=Path)
-    score.add_argument("--output", required=True, type=Path)
-    score.add_argument("--seed", type=int, default=0)
-    score.add_argument("--bootstrap", type=int, default=DEFAULT_BOOTSTRAP)
+    score = subparsers.add_parser("score", help="Score detector JSONL against gold JSONL")
+    score.add_argument("gold", type=Path, help="Gold-labeled JSONL")
+    score.add_argument("detector", type=Path, help="Detector output JSONL to score")
+    score.add_argument("--output", required=True, type=Path, help="Path for the score report JSON")
+    score.add_argument(
+        "--seed", type=int, default=0, help="Random seed for bootstrap resampling (default: 0)"
+    )
+    score.add_argument(
+        "--bootstrap",
+        type=int,
+        default=DEFAULT_BOOTSTRAP,
+        help=f"Number of bootstrap samples (default: {DEFAULT_BOOTSTRAP})",
+    )
 
-    gate = subparsers.add_parser("gate", help="apply release thresholds to a score report")
-    gate.add_argument("report", type=Path)
-    gate.add_argument("--min-precision", required=True, type=_threshold)
-    gate.add_argument("--min-recall", required=True, type=_threshold)
+    gate = subparsers.add_parser("gate", help="Apply release thresholds to a score report")
+    gate.add_argument("report", type=Path, help="Score report JSON from the score command")
+    gate.add_argument(
+        "--min-precision",
+        required=True,
+        type=_threshold,
+        help="Minimum acceptable precision, between 0 and 1",
+    )
+    gate.add_argument(
+        "--min-recall",
+        required=True,
+        type=_threshold,
+        help="Minimum acceptable recall, between 0 and 1",
+    )
     gate.add_argument(
         "--max-sensitive-leakage",
         required=True,

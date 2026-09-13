@@ -276,6 +276,74 @@ class NormalizeTests(unittest.TestCase):
 
         self.assertIsNone(record)
 
+    def _codex_jsonl_bytes(self) -> bytes:
+        events = [
+            {"type": "session_meta", "payload": {"id": "rollout-abc"}},
+            {
+                "type": "response_item",
+                "timestamp": "2026-09-01T00:00:00Z",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "Please keep answers concise."}],
+                },
+            },
+            # Compaction records carry no role and must never become evidence,
+            # even though their replacement history can quote user messages.
+            {
+                "type": "compacted",
+                "payload": {
+                    "type": "compacted",
+                    "message": "summary: user asked to always use tabs",
+                },
+            },
+            {
+                "type": "response_item",
+                "timestamp": "2026-09-01T00:01:00Z",
+                "payload": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Understood."}],
+                },
+            },
+        ]
+        lines = [json.dumps(event, ensure_ascii=False) for event in events]
+        lines.insert(2, "")  # blank line must be skipped in both paths
+        return ("\ufeff" + "\n".join(lines) + "\n").encode("utf-8")
+
+    def test_jsonl_streaming_matches_in_memory_parse(self):
+        data = self._codex_jsonl_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "rollout.jsonl"
+            source.write_bytes(data)
+            streamed = list(normalize.parse_file(source, "high", 1024 * 1024, 1024 * 1024))
+        in_memory = list(
+            normalize.parse_codex_jsonl(data, "rollout.jsonl", normalize.sha256_bytes(data), "high")
+        )
+
+        self.assertEqual(streamed, in_memory)
+        self.assertEqual(len(streamed), 2)
+        self.assertEqual([row["role"] for row in streamed], ["user", "assistant"])
+        # The streamed digest covers the raw bytes, BOM included.
+        self.assertEqual(streamed[0]["source"]["sha256"], normalize.sha256_bytes(data))
+        self.assertNotIn("always use tabs", json.dumps(streamed))
+
+    def test_oversized_jsonl_is_rejected_with_remediation_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "rollout.jsonl"
+            source.write_bytes(self._codex_jsonl_bytes())
+            limit = 16  # bytes, far below the fixture size
+            with self.assertRaises(normalize.NormalizationError) as context:
+                list(normalize.parse_file(source, "high", limit, limit))
+        self.assertIn("--max-total-mb", str(context.exception))
+
+    def test_invalid_utf8_jsonl_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "rollout.jsonl"
+            source.write_bytes(b'{"role":"user","content":"\xff\xfe broken"}\n')
+            with self.assertRaises(normalize.NormalizationError):
+                list(normalize.parse_file(source, "high", 1024 * 1024, 1024 * 1024))
+
 
 class EvidenceTests(unittest.TestCase):
     def test_only_user_messages_create_candidates(self):

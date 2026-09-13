@@ -299,10 +299,24 @@ def atomic_write(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) ->
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="Normalized JSONL from normalize_sessions.py")
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--min-score", type=int, default=2)
-    parser.add_argument("--per-session", type=int, default=100)
-    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--output", required=True, type=Path, help="Private evidence queue JSON path"
+    )
+    parser.add_argument(
+        "--min-score",
+        type=int,
+        default=2,
+        help="Minimum heuristic score for a message to enter the queue (default: 2)",
+    )
+    parser.add_argument(
+        "--per-session",
+        type=int,
+        default=100,
+        help="Maximum evidence messages taken from one session (default: 100)",
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
     return parser
 
 

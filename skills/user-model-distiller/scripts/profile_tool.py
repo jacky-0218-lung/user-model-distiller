@@ -610,87 +610,214 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Create an empty profile")
-    init_parser.add_argument("output", type=Path)
-    init_parser.add_argument("--overwrite", action="store_true")
+    init_parser.add_argument("output", type=Path, help="Path for the new profile JSON")
+    init_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     validate_parser = subparsers.add_parser("validate", help="Validate a profile")
-    validate_parser.add_argument("profile", type=Path)
+    validate_parser.add_argument("profile", type=Path, help="Profile JSON to validate")
 
     review_parser = subparsers.add_parser(
         "review-evidence", help="Bind a user review decision to selected evidence"
     )
-    review_parser.add_argument("evidence", type=Path)
-    review_parser.add_argument("--message-id", required=True, action="append", dest="message_ids")
-    review_parser.add_argument("--decision", required=True, choices=("accepted", "rejected"))
-    review_parser.add_argument("--authorization-id", required=True)
-    review_parser.add_argument("--output", type=Path)
-    review_parser.add_argument("--in-place", action="store_true")
-    review_parser.add_argument("--overwrite", action="store_true")
+    review_parser.add_argument(
+        "evidence", type=Path, help="Evidence queue JSON from collect_evidence.py"
+    )
+    review_parser.add_argument(
+        "--message-id",
+        required=True,
+        action="append",
+        dest="message_ids",
+        help="Evidence message id the decision covers; repeat for multiple messages",
+    )
+    review_parser.add_argument(
+        "--decision",
+        required=True,
+        choices=("accepted", "rejected"),
+        help="User decision to record for the selected evidence",
+    )
+    review_parser.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this review",
+    )
+    review_parser.add_argument(
+        "--output", type=Path, help="Write the updated evidence file to this path"
+    )
+    review_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Update the input file directly instead of using --output",
+    )
+    review_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     candidate_parser = subparsers.add_parser(
         "add-candidate", help="Create a candidate from selected reviewed evidence"
     )
-    candidate_parser.add_argument("profile", type=Path)
-    candidate_parser.add_argument("evidence", type=Path)
-    candidate_parser.add_argument("--id", required=True)
-    candidate_parser.add_argument("--rule", required=True)
-    candidate_parser.add_argument("--category", required=True, choices=sorted(ALLOWED_CATEGORIES))
-    candidate_parser.add_argument("--scope-type", default="global", choices=sorted(ALLOWED_SCOPE_TYPES))
-    candidate_parser.add_argument("--scope-value")
-    candidate_parser.add_argument("--confidence", required=True, type=float)
-    candidate_parser.add_argument("--sensitivity", default="normal", choices=sorted(ALLOWED_SENSITIVITY))
-    candidate_parser.add_argument("--message-id", required=True, action="append", dest="message_ids")
-    candidate_parser.add_argument("--supersedes", action="append", default=[])
+    candidate_parser.add_argument("profile", type=Path, help="Profile JSON to update")
+    candidate_parser.add_argument(
+        "evidence", type=Path, help="Evidence queue JSON containing the accepted messages"
+    )
+    candidate_parser.add_argument(
+        "--id", required=True, help="Unique identifier for the new candidate preference"
+    )
+    candidate_parser.add_argument(
+        "--rule", required=True, help="Preference rule text as the user stated or approved it"
+    )
+    candidate_parser.add_argument(
+        "--category",
+        required=True,
+        choices=sorted(ALLOWED_CATEGORIES),
+        help="Preference category",
+    )
+    candidate_parser.add_argument(
+        "--scope-type",
+        default="global",
+        choices=sorted(ALLOWED_SCOPE_TYPES),
+        help="Where the rule applies (default: global)",
+    )
+    candidate_parser.add_argument(
+        "--scope-value",
+        help="Project, task, or temporary identifier when the scope type requires one",
+    )
+    candidate_parser.add_argument(
+        "--confidence", required=True, type=float, help="Confidence between 0 and 1"
+    )
+    candidate_parser.add_argument(
+        "--sensitivity",
+        default="normal",
+        choices=sorted(ALLOWED_SENSITIVITY),
+        help="Sensitivity level; sensitive rules never compile without an exact --sensitive-id",
+    )
+    candidate_parser.add_argument(
+        "--message-id",
+        required=True,
+        action="append",
+        dest="message_ids",
+        help="Accepted evidence message id backing this candidate; repeat for multiple messages",
+    )
+    candidate_parser.add_argument(
+        "--supersedes",
+        action="append",
+        default=[],
+        help="Id of an existing preference this candidate replaces; repeat for multiple ids",
+    )
     candidate_parser.add_argument(
         "--expires-at", dest="expires_at",
         help="Optional ISO-8601 end of validity; stored normalized to UTC and covered by the approval digest",
     )
-    candidate_parser.add_argument("--output", type=Path)
-    candidate_parser.add_argument("--in-place", action="store_true")
-    candidate_parser.add_argument("--overwrite", action="store_true")
+    candidate_parser.add_argument(
+        "--output", type=Path, help="Write the updated profile to this path"
+    )
+    candidate_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Update the profile file directly instead of using --output",
+    )
+    candidate_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     digest_parser = subparsers.add_parser(
         "candidate-digest", help="Print the digest that a user approval must bind"
     )
-    digest_parser.add_argument("profile", type=Path)
-    digest_parser.add_argument("id")
+    digest_parser.add_argument("profile", type=Path, help="Profile JSON containing the candidate")
+    digest_parser.add_argument("id", help="Candidate preference id")
 
     approve_parser = subparsers.add_parser(
         "approve", help="Approve one exact candidate using a digest-bound authorization"
     )
-    approve_parser.add_argument("profile", type=Path)
-    approve_parser.add_argument("id")
-    approve_parser.add_argument("--authorization-id", required=True)
-    approve_parser.add_argument("--expected-digest", required=True)
-    approve_parser.add_argument("--output", type=Path)
-    approve_parser.add_argument("--in-place", action="store_true")
-    approve_parser.add_argument("--overwrite", action="store_true")
+    approve_parser.add_argument("profile", type=Path, help="Profile JSON containing the candidate")
+    approve_parser.add_argument("id", help="Candidate preference id to approve")
+    approve_parser.add_argument(
+        "--authorization-id",
+        required=True,
+        help="Identifier of the explicit user authorization behind this approval",
+    )
+    approve_parser.add_argument(
+        "--expected-digest",
+        required=True,
+        help="Digest from candidate-digest; approval fails if the candidate has changed since",
+    )
+    approve_parser.add_argument(
+        "--output", type=Path, help="Write the updated profile to this path"
+    )
+    approve_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Update the profile file directly instead of using --output",
+    )
+    approve_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     status_parser = subparsers.add_parser("set-status", help="Change one preference status")
-    status_parser.add_argument("profile", type=Path)
-    status_parser.add_argument("id")
-    status_parser.add_argument("status", choices=("rejected", "superseded"))
-    status_parser.add_argument("--output", type=Path)
-    status_parser.add_argument("--in-place", action="store_true")
-    status_parser.add_argument("--overwrite", action="store_true")
+    status_parser.add_argument("profile", type=Path, help="Profile JSON to update")
+    status_parser.add_argument("id", help="Preference id to update")
+    status_parser.add_argument(
+        "status", choices=("rejected", "superseded"), help="New status to record"
+    )
+    status_parser.add_argument(
+        "--output", type=Path, help="Write the updated profile to this path"
+    )
+    status_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Update the profile file directly instead of using --output",
+    )
+    status_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     forget_parser = subparsers.add_parser("forget", help="Remove one preference record")
-    forget_parser.add_argument("profile", type=Path)
-    forget_parser.add_argument("id")
-    forget_parser.add_argument("--output", type=Path)
-    forget_parser.add_argument("--in-place", action="store_true")
-    forget_parser.add_argument("--overwrite", action="store_true")
+    forget_parser.add_argument("profile", type=Path, help="Profile JSON to update")
+    forget_parser.add_argument("id", help="Preference id to remove without leaving a trace")
+    forget_parser.add_argument(
+        "--output", type=Path, help="Write the updated profile to this path"
+    )
+    forget_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Update the profile file directly instead of using --output",
+    )
+    forget_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
 
     compile_parser = subparsers.add_parser("compile", help="Compile approved preferences to Markdown")
-    compile_parser.add_argument("profile", type=Path)
-    compile_parser.add_argument("--output", required=True, type=Path)
-    compile_parser.add_argument("--sensitive-id", action="append", default=[], dest="sensitive_ids")
-    compile_parser.add_argument("--project-id")
-    compile_parser.add_argument("--task-id")
-    compile_parser.add_argument("--temporary-id")
-    compile_parser.add_argument("--as-of")
-    compile_parser.add_argument("--limit", type=int, default=40)
-    compile_parser.add_argument("--overwrite", action="store_true")
+    compile_parser.add_argument("profile", type=Path, help="Approved profile JSON to compile")
+    compile_parser.add_argument(
+        "--output", required=True, type=Path, help="Path for the compiled Markdown runtime view"
+    )
+    compile_parser.add_argument(
+        "--sensitive-id",
+        action="append",
+        default=[],
+        dest="sensitive_ids",
+        help="Exact id of one sensitive rule to include; repeat per rule (no blanket switch)",
+    )
+    compile_parser.add_argument("--project-id", help="Also include rules scoped to this project")
+    compile_parser.add_argument("--task-id", help="Also include rules scoped to this task")
+    compile_parser.add_argument(
+        "--temporary-id", help="Also include rules scoped to this temporary context"
+    )
+    compile_parser.add_argument(
+        "--as-of",
+        help="Evaluate expires_at against this ISO-8601 instant instead of now; "
+        "affects expiry only and does not reconstruct historical status",
+    )
+    compile_parser.add_argument(
+        "--limit",
+        type=int,
+        default=40,
+        help="Maximum rules in the runtime view, between 1 and 200 (default: 40)",
+    )
+    compile_parser.add_argument(
+        "--overwrite", action="store_true", help="Replace an existing file at the output path"
+    )
     return parser
 
 
