@@ -578,7 +578,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    score = subparsers.add_parser("score", help="score detector JSONL against gold JSONL")
+    score = subparsers.add_parser("score", help="Score detector JSONL against gold JSONL")
     score.add_argument("gold", type=Path, help="Gold-labeled JSONL")
     score.add_argument("detector", type=Path, help="Detector output JSONL to score")
     score.add_argument("--output", required=True, type=Path, help="Path for the score report JSON")
@@ -592,7 +592,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Number of bootstrap samples (default: {DEFAULT_BOOTSTRAP})",
     )
 
-    gate = subparsers.add_parser("gate", help="apply release thresholds to a score report")
+    gate = subparsers.add_parser("gate", help="Apply release thresholds to a score report")
     gate.add_argument("report", type=Path, help="Score report JSON from the score command")
     gate.add_argument(
         "--min-precision",

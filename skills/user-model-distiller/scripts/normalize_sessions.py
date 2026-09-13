@@ -21,7 +21,7 @@ from typing import Any, Iterable, Iterator
 
 
 SCHEMA_VERSION = "1.0"
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 DEFAULT_MAX_MEMBER_BYTES = 128 * 1024 * 1024
 DEFAULT_MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
@@ -411,9 +411,20 @@ def parse_json_document(
 
 
 def parse_codex_jsonl(data: bytes, source_name: str, source_sha256: str, privacy: str) -> Iterator[dict[str, Any]]:
+    """Parse an in-memory JSONL document (retained for ZIP members and tests)."""
+    try:
+        lines = data.decode("utf-8-sig").splitlines()
+    except UnicodeDecodeError as exc:
+        raise NormalizationError(f"Invalid UTF-8 in {source_name}") from exc
+    yield from parse_codex_jsonl_lines(lines, source_name, source_sha256, privacy)
+
+
+def parse_codex_jsonl_lines(
+    lines: Iterable[str], source_name: str, source_sha256: str, privacy: str
+) -> Iterator[dict[str, Any]]:
     current_session = stable_id("session", source_sha256)
     message_index = 0
-    for line_number, raw_line in enumerate(data.decode("utf-8-sig").splitlines(), start=1):
+    for line_number, raw_line in enumerate(lines, start=1):
         if not raw_line.strip():
             continue
         try:
@@ -470,16 +481,68 @@ def read_bounded(path: Path, limit: int) -> bytes:
     return data
 
 
+def hash_file_bounded(path: Path, limit: int) -> str:
+    """Hash a file in bounded chunks without loading it into memory.
+
+    The byte count is enforced during the read so a file that grows past the
+    limit mid-read is still rejected. The digest covers the raw bytes,
+    including any byte-order mark, matching ``sha256_bytes`` on a full read.
+    """
+    if path.is_symlink() or is_reparse_point(path):
+        raise NormalizationError(f"Refusing linked or reparse-point input: {path}")
+    digest = hashlib.sha256()
+    total = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > limit:
+                raise NormalizationError(
+                    f"Input exceeds {limit} bytes: {path.name}. Codex rollout files "
+                    "this large are usually dominated by compaction history and raw "
+                    "tool output, which normalization ignores anyway; pass individual "
+                    "session files or raise --max-total-mb."
+                )
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def iter_jsonl_lines(path: Path, source_name: str) -> Iterator[str]:
+    """Stream logical JSONL lines from disk without loading the whole file.
+
+    Splits each physical line again with ``str.splitlines`` so the logical
+    line boundaries (including U+2028/U+2029 and other separators) match the
+    previous whole-document ``splitlines`` behaviour exactly.
+    """
+    try:
+        with path.open("r", encoding="utf-8-sig", newline=None) as handle:
+            for physical_line in handle:
+                yield from physical_line.splitlines()
+    except UnicodeDecodeError as exc:
+        raise NormalizationError(f"Invalid UTF-8 in {source_name}") from exc
+
+
 def parse_file(path: Path, privacy: str, max_member: int, max_total: int) -> Iterator[dict[str, Any]]:
     suffix = path.suffix.lower()
     if suffix == ".zip":
         yield from parse_zip(path, privacy, max_member, max_total)
         return
+    if suffix == ".jsonl":
+        # Codex rollout files can be very large (a known upstream issue lets
+        # them grow to hundreds of megabytes of compaction history and raw
+        # tool output). Hash in one bounded streaming pass, then parse line
+        # by line, so peak memory stays near the largest single line instead
+        # of several multiples of the file size.
+        source_sha256 = hash_file_bounded(path, max_total)
+        yield from parse_codex_jsonl_lines(
+            iter_jsonl_lines(path, path.name), path.name, source_sha256, privacy
+        )
+        return
     data = read_bounded(path, max_total)
     source_sha256 = sha256_bytes(data)
-    if suffix == ".jsonl":
-        yield from parse_codex_jsonl(data, path.name, source_sha256, privacy)
-    elif suffix == ".json":
+    if suffix == ".json":
         try:
             document = strict_json_loads(data.decode("utf-8-sig"))
         except (
