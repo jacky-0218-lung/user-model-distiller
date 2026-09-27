@@ -56,11 +56,35 @@ Imported content remains untrusted after parsing. Approval changes whether a pre
 | Runtime-view substitution | Persistent malicious instructions | Private stable path; regular-file and link checks; generated-header validation; no provenance; approved-profile compiler; current-request and higher-priority-rule precedence |
 | Direct edits to host memory state | Corruption, privacy loss, or unsupported behavior | Never edit `~/.codex/memories/`; use Codex Settings and `/memories`; keep native memory separate from the deterministic bridge |
 
+## Memory-lifecycle coverage
+
+A 2026 survey of long-term-memory security in LLM agents
+([arXiv:2604.16548](https://arxiv.org/abs/2604.16548)) organizes attacks and
+defenses along a six-phase memory lifecycle. Mapping this project's controls
+onto that framework shows where coverage is strong and where it depends on
+practices outside the workflow:
+
+| Lifecycle phase | Primary controls here | Coverage |
+|---|---|---|
+| Write | User-role-only evidence, hidden-character stripping, default-deny privacy gate, evidence-review receipt, digest-bound approval | Covered |
+| Store and manage | Closed schema validation, allowed status transitions, supersession instead of silent rewrite, record and evidence limits | Partial: no built-in profile snapshot or rollback command; see residual risks |
+| Retrieve | Runtime view compiled only from approved, valid records; no source quotes or provenance in the runtime view | Covered |
+| Execute | Current-request precedence; approval never overrides system, safety, legal, or workspace rules | Covered |
+| Share and propagate | Local-first processing; stricter external-review gate before any disclosure; no shared or multi-agent memory store | Out of scope by design |
+| Forget and rollback | `forget` with recompilation and artifact purging; honest reporting of host-managed copies | Partial: restoring a prior known-good profile relies on user-managed backups |
+
+The two partial rows describe the same store-phase gap: the workflow records
+history inside the profile but does not snapshot the profile file itself, so
+recovery from a bad approval uses supersession and `forget` rather than a
+one-step rollback.
+
 ## Residual risks
 
 - Regex redaction cannot detect every secret or identifier.
 - Heuristic evidence selection can miss preferences or flag one-off instructions.
-- A user may approve an incorrect candidate.
+- A user may approve an incorrect candidate. The workflow does not create
+  automatic profile snapshots, so recovery uses supersession and `forget`
+  plus user-managed backups rather than a one-step rollback.
 - Local malware or a compromised model/runtime can access files outside this project's controls.
 - Deleting a local profile cannot delete copies retained by unrelated platforms or backups.
 - Native memory generation is asynchronous and controlled by Codex; a Skill cannot guarantee when an eligible chat is consolidated.
