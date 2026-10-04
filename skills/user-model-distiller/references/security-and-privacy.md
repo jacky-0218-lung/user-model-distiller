@@ -21,6 +21,21 @@ Only two events may authorize a digest-bound approval:
 - Reduce high-privacy timestamps to day precision.
 - Replace every externally supplied session and message identifier with a stable source-scoped pseudonym; safe syntax does not imply non-sensitive metadata.
 
+## Source transcript permissions
+
+The bundled scripts create their own outputs owner-only where the platform supports it (0600 files, 0700 staging directories). The transcripts the user feeds in do not arrive with the same protection:
+
+- Codex CLI currently creates rollout session files under `$CODEX_HOME/sessions/` world-readable (mode 0644), unlike its message-history file. Upstream issue [openai/codex#21660](https://github.com/openai/codex/issues/21660) remains open, so on a shared or multi-user system other local accounts can read full transcripts before this Skill ever runs.
+- ChatGPT export archives and other transcript files land wherever the browser or user saved them, with umask-default permissions.
+
+Before distilling on a shared or multi-user system:
+
+1. Tighten the Codex home first: `chmod 700 "$CODEX_HOME"` (default `~/.codex`) and `chmod -R go-rwx "$CODEX_HOME/sessions"`. On Windows, verify the directory ACL grants access to the owning user only, with no foreign allow entries.
+2. Apply the same owner-only expectation to export archives and to any staging copy before placing them in scope.
+3. Re-check after every Codex upgrade until the upstream fix ships; new session files inherit the upstream default again.
+
+This complements, and never replaces, the private output directory rules above. Tightening the Skill's outputs cannot retroactively protect a source that was world-readable before the run, and the Skill must report that boundary honestly instead of implying the exposure window is closed.
+
 ## De-identification boundary
 
 Pseudonyms and lexical masking are not anonymization. Names, organizations, projects, relationships, commercial terms, domains, filenames, quoted transcripts, and combinations of quasi-identifiers can remain linkable.

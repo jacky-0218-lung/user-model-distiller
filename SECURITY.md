@@ -34,4 +34,4 @@ Secret scanning, push protection, private vulnerability reporting, branch rulese
 
 ## Operator responsibility
 
-Keep session exports and generated artifacts in a private directory outside the repository. Review candidates before approval. Deleting a record from this tool cannot delete copies stored by unrelated services, backups, or platforms; report those boundaries honestly.
+Keep session exports and generated artifacts in a private directory outside the repository. On shared or multi-user systems, also verify the permissions of the source transcripts themselves before distilling: Codex CLI currently writes rollout session files world-readable ([openai/codex#21660](https://github.com/openai/codex/issues/21660), open at the time of writing), so tighten `$CODEX_HOME` (for example `chmod 700 ~/.codex`) and re-check after upgrades; the Skill's own owner-only outputs cannot repair exposure that happened before it ran. Review candidates before approval. Deleting a record from this tool cannot delete copies stored by unrelated services, backups, or platforms; report those boundaries honestly.
